@@ -1,0 +1,53 @@
+{
+  "entities": {
+    "Employee": {
+      "title": "Employee",
+      "description": "Information about Warehouse ELNUSA BSD employees",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier (NIK)" },
+        "name": { "type": "string", "description": "Full name of the employee" },
+        "department": { "type": "string", "description": "Employee department" },
+        "nik": { "type": "string", "description": "National Identification Number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "department", "nik"]
+    },
+    "PresenceLog": {
+      "title": "Presence Log",
+      "description": "Log of employee scan activity",
+      "type": "object",
+      "properties": {
+        "employeeId": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "type": { "type": "string", "enum": ["IN", "OUT"] },
+        "date": { "type": "string", "description": "YYYY-MM-DD" }
+      },
+      "required": ["employeeId", "timestamp", "type", "date"]
+    },
+    "SystemConfig": {
+      "title": "System Config",
+      "description": "Global system settings",
+      "type": "object",
+      "properties": {
+        "maintenanceMode": { "type": "boolean" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "message": { "type": "string" }
+      }
+    }
+  },
+  "firestore": {
+    "/employees/{employeeId}": {
+      "schema": "Employee",
+      "description": "Collection of employees"
+    },
+    "/presence_logs/{logId}": {
+      "schema": "PresenceLog",
+      "description": "Historical scan logs"
+    },
+    "/system_config/{configId}": {
+      "schema": "SystemConfig",
+      "description": "Global configuration document"
+    }
+  }
+}

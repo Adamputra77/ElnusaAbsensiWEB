@@ -1,0 +1,6 @@
+{
+  "name": "Warehouse ELNUSA BSD",
+  "description": "Warehouse ELNUSA BSD Presence Management System with real-time POB tracking, barcode/QR scanning, employee portal, and administration dashboard.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": []
+}
