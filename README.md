@@ -1,5 +1,12 @@
+<div align="center">
+<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+</div>
 
-Aplikasi BY TEAM IT MAHASISWA UNIVERSITAS ESA UNGGUL ADAM PUTRA PRATAMA RAHARJA
+# Run and deploy your AI Studio app
+
+This contains everything you need to run your app locally.
+
+View your app in AI Studio: https://ai.studio/apps/6853cf5c-94a3-4d47-9b9a-b18a5e669070
 
 ## Run Locally
 

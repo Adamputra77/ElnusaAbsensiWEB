@@ -8,7 +8,10 @@ import {
   addDoc, 
   serverTimestamp,
   doc,
-  getDoc
+  getDoc,
+  setDoc,
+  increment,
+  writeBatch
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { PresenceType, PresenceLog, Employee } from '../types';
@@ -125,17 +128,62 @@ export async function processScan(nik: string): Promise<{ success: boolean; mess
     const todayStr = format(new Date(), 'yyyy-MM-dd');
     const latestLog = await getLatestLog(employee.id, todayStr);
 
+    // Guard: Prevent double-scans within a 1-minute window
+    if (latestLog && latestLog.timestamp) {
+      const lastTime = (latestLog.timestamp as any).seconds * 1000;
+      const now = Date.now();
+      const diffMinutes = (now - lastTime) / (1000 * 60);
+      
+      if (diffMinutes < 1) { // 1 minute cooldown per individual
+        return { 
+          success: false, 
+          message: `Mohon tunggu sebentar (${Math.ceil(60 - (now - lastTime) / 1000)}s)`, 
+          employee 
+        };
+      }
+    }
+
     let nextType = PresenceType.IN;
     if (latestLog && latestLog.type === PresenceType.IN) {
       nextType = PresenceType.OUT;
     }
 
-    await addDoc(collection(db, 'presence_logs'), {
+    // Atomic update for Log and Stats Document
+    const batch = writeBatch(db);
+    
+    // 1. Create Presence Log record
+    const logRef = doc(collection(db, 'presence_logs'));
+    batch.set(logRef, {
       employeeId: employee.id,
       type: nextType,
       timestamp: serverTimestamp(),
       date: todayStr
     });
+
+    // 2. Update the Daily Stats document for real-time aggregation
+    const statsRef = doc(db, 'stats', todayStr);
+    const isVisitor = employee.isVisitor === true;
+    
+    const statsUpdate: any = {};
+    if (!isVisitor) {
+      if (nextType === PresenceType.IN) {
+        statsUpdate.in = increment(1);
+        statsUpdate.pob = increment(1);
+      } else {
+        statsUpdate.out = increment(1);
+        statsUpdate.pob = increment(-1);
+      }
+    } else {
+      // For visitors, we count total entries (or unique if preferred, but increments are simpler)
+      if (nextType === PresenceType.IN) {
+         statsUpdate.totalVisits = increment(1);
+      }
+    }
+
+    // Ensure document exists and update counters atomically
+    batch.set(statsRef, statsUpdate, { merge: true });
+
+    await batch.commit();
 
     const msg = nextType === PresenceType.IN 
       ? `Selamat Datang, ${employee.name}` 
@@ -148,7 +196,7 @@ export async function processScan(nik: string): Promise<{ success: boolean; mess
       type: nextType 
     };
   } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, 'presence_logs');
+    handleFirestoreError(error, OperationType.WRITE, 'presence_logs (batch)');
     return { success: false, message: 'Terjadi kesalahan sistem' };
   }
 }

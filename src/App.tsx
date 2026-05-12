@@ -28,9 +28,11 @@ export default function App() {
       if (doc.exists()) {
         const data = doc.data();
         setMaintenance({
-          active: !!data.maintenanceMode,
+          active: data.maintenanceMode === true,
           message: data.message || 'Sistem sedang dalam pemeliharaan rutin. Mohon tunggu beberapa saat.'
         });
+      } else {
+        setMaintenance({ active: false, message: '' });
       }
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, 'system_config/main');
@@ -91,13 +93,12 @@ export default function App() {
     }
   };
 
+  // Define the main content based on role
+  let mainContent;
   if (!userRole) {
-    return <LoginSelection onSelectRole={handleLoginSelect} />;
-  }
-
-  // Employee Portal View
-  if (userRole === UserRole.EMPLOYEE && authEmployee) {
-    return (
+    mainContent = <LoginSelection onSelectRole={handleLoginSelect} />;
+  } else if (userRole === UserRole.EMPLOYEE && authEmployee) {
+    mainContent = (
       <div className="min-h-screen bg-[#020617] text-white p-4 md:p-12 relative overflow-hidden font-sans">
         <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-purple-600/5 rounded-full blur-[120px] -z-10" />
         <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-blue-600/5 rounded-full blur-[120px] -z-10" />
@@ -292,101 +293,113 @@ export default function App() {
         </footer>
       </div>
     );
+  } else {
+    // Admin or Security View
+    mainContent = (
+      <>
+        {/* Admin/Security Controls */}
+        <div className="fixed bottom-4 right-4 z-[100] flex flex-col gap-3">
+          <button
+            onClick={handleLogout}
+            className="p-3 md:p-5 bg-red-600/10 hover:bg-red-600/30 backdrop-blur-xl border border-red-500/20 hover:border-red-500 rounded-2xl md:rounded-[1.5rem] shadow-2xl transition-all text-red-500 active:scale-95 group relative flex items-center justify-center shrink-0"
+            title="Logout"
+          >
+            <LogOut size={20} className="md:size-6" />
+            <div className="absolute right-full mr-3 top-1/2 -translate-y-1/2 py-2 px-4 bg-red-600 text-white text-[10px] font-black rounded-xl opacity-0 group-hover:opacity-100 transition-all pointer-events-none uppercase tracking-widest whitespace-nowrap shadow-xl hidden md:block">
+              Logout {userRole === UserRole.ADMIN ? 'Admin' : 'Security'}
+            </div>
+          </button>
+
+          {(userRole === UserRole.ADMIN || userRole === UserRole.SECURITY) && (
+            <button
+              onClick={() => setView(view === 'SCAN' ? 'ADMIN' : 'SCAN')}
+              className="p-3 md:p-5 bg-slate-900/90 backdrop-blur-xl border border-slate-700 rounded-2xl md:rounded-[1.5rem] shadow-2xl hover:scale-110 hover:border-blue-500/50 transition-all text-slate-400 hover:text-blue-400 group active:scale-95 relative flex items-center justify-center shrink-0"
+              title={view === 'SCAN' ? 'Go to Dashboard' : 'Go to Scan Interface'}
+            >
+              {view === 'SCAN' ? <Settings2 size={20} className="md:size-6" /> : <ScanLine size={20} className="md:size-6" />}
+              <div className="absolute right-full mr-3 top-1/2 -translate-y-1/2 py-2 px-4 bg-blue-600 text-white text-[10px] font-black rounded-xl opacity-0 group-hover:opacity-100 transition-all pointer-events-none uppercase tracking-widest whitespace-nowrap shadow-xl hidden md:block">
+                {view === 'SCAN' ? 'Dashboard Monitoring' : 'Gate Scan Interface'}
+              </div>
+            </button>
+          )}
+        </div>
+
+        <main>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={view}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.3 }}
+            >
+              {view === 'SCAN' ? <ScanInterface /> : <AdminDashboard userRole={userRole} />}
+            </motion.div>
+          </AnimatePresence>
+        </main>
+
+        {/* Branding Footer */}
+        <footer className="fixed bottom-4 left-4 pointer-events-none opacity-30 select-none">
+          <div className="text-[9px] font-black uppercase tracking-[0.3em] text-slate-500">
+            Powered by Warehouse ELNUSA BSD
+          </div>
+        </footer>
+      </>
+    );
   }
 
   return (
     <div className="relative min-h-screen font-sans">
       {/* Maintenance Overlay */}
       <AnimatePresence>
-        {maintenance.active && userRole !== UserRole.ADMIN && userRole !== UserRole.SECURITY && (
+        {maintenance.active && userRole !== null && userRole !== UserRole.ADMIN && (
           <motion.div 
+            key="maintenance-overlay"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[999] bg-[#020617]/95 backdrop-blur-xl flex items-center justify-center p-4 md:p-6"
+            className="fixed inset-0 z-[9999] bg-[#020617]/98 backdrop-blur-2xl flex items-center justify-center p-4 md:p-6"
           >
             <motion.div 
-              initial={{ scale: 0.9, y: 20 }}
+              initial={{ scale: 0.9, y: 30 }}
               animate={{ scale: 1, y: 0 }}
-              className="bg-slate-900 border border-slate-800 p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] shadow-2xl max-w-lg w-full text-center relative overflow-hidden"
+              className="bg-slate-900 border border-slate-800 p-8 md:p-12 rounded-[2.5rem] md:rounded-[4rem] shadow-[0_0_100px_rgba(249,115,22,0.15)] max-w-xl w-full text-center relative overflow-hidden"
             >
-              <div className="absolute top-0 left-0 w-full h-1.5 md:h-2 bg-gradient-to-r from-orange-500 via-amber-500 to-orange-500 animate-shimmer" />
+              <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-orange-600 via-amber-500 to-orange-600 animate-shimmer" />
               
-              <div className="w-16 h-16 md:w-24 md:h-24 bg-orange-600/10 rounded-2xl md:rounded-3xl flex items-center justify-center mx-auto mb-6 md:mb-8 text-orange-500 relative">
-                <Hammer size={32} className="md:size-[48px] animate-bounce" />
-                <AlertTriangle size={18} className="md:size-[24px] absolute -top-1 -right-1 text-amber-500" />
+              <div className="w-20 h-20 md:w-28 md:h-28 bg-orange-600/10 rounded-3xl flex items-center justify-center mx-auto mb-8 md:mb-10 text-orange-500 relative">
+                <Hammer size={40} className="md:size-[56px] animate-pulse" />
+                <AlertTriangle size={20} className="md:size-[28px] absolute -top-1 -right-1 text-amber-500" />
               </div>
 
-              <h2 className="text-xl md:text-3xl font-black text-white uppercase tracking-tight mb-3 md:mb-4 italic">
-                SISTEM <span className="text-orange-500 underline decoration-orange-500/30">MAINTENANCE</span>
+              <h2 className="text-2xl md:text-4xl font-black text-white uppercase tracking-tight mb-4 md:mb-6 leading-tight">
+                UNDER <span className="text-orange-500">MAINTENANCE</span>
               </h2>
               
-              <p className="text-slate-400 text-xs md:text-sm font-bold leading-relaxed mb-8 md:mb-10 px-2 md:px-4">
+              <p className="text-slate-400 text-sm md:text-base font-bold leading-relaxed mb-10 md:mb-12 px-2 md:px-8">
                 {maintenance.message}
               </p>
 
-              <div className="bg-slate-950 p-4 md:p-6 rounded-xl md:rounded-2xl border border-slate-800/50 mb-6 md:mb-8 inline-block">
-                <p className="text-[8px] md:text-[10px] font-black uppercase tracking-[0.3em] md:tracking-[0.4em] text-slate-500 leading-none">
-                  Expected Uptime <span className="text-white ml-2">SOON</span>
-                </p>
+              <div className="bg-slate-950 p-5 md:p-7 rounded-2xl border border-slate-800/50 mb-8 md:mb-10 inline-block">
+                <div className="flex items-center gap-3">
+                  <div className="w-2 h-2 rounded-full bg-orange-500 animate-ping" />
+                  <p className="text-[10px] md:text-[12px] font-black uppercase tracking-[0.4em] text-slate-500">
+                    Restoring Service <span className="text-white ml-2">ASAP</span>
+                  </p>
+                </div>
               </div>
 
-              <p className="text-[9px] font-black uppercase tracking-[0.4em] text-slate-600">
-                WH ELNUSA BSD • IT OPS
-              </p>
+              <div className="pt-8 border-t border-slate-800/50">
+                <p className="text-[10px] font-black uppercase tracking-[0.5em] text-slate-600">
+                  WH ELNUSA BSD • IT OPS UNIT
+                </p>
+              </div>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Admin/Security Controls */}
-      <div className="fixed bottom-4 right-4 z-[100] flex flex-col gap-3">
-        <button
-          onClick={handleLogout}
-          className="p-3 md:p-5 bg-red-600/10 hover:bg-red-600/30 backdrop-blur-xl border border-red-500/20 hover:border-red-500 rounded-2xl md:rounded-[1.5rem] shadow-2xl transition-all text-red-500 active:scale-95 group relative flex items-center justify-center shrink-0"
-          title="Logout"
-        >
-          <LogOut size={20} className="md:size-6" />
-          <div className="absolute right-full mr-3 top-1/2 -translate-y-1/2 py-2 px-4 bg-red-600 text-white text-[10px] font-black rounded-xl opacity-0 group-hover:opacity-100 transition-all pointer-events-none uppercase tracking-widest whitespace-nowrap shadow-xl hidden md:block">
-            Logout {userRole === UserRole.ADMIN ? 'Admin' : 'Security'}
-          </div>
-        </button>
-
-        {(userRole === UserRole.ADMIN || userRole === UserRole.SECURITY) && (
-          <button
-            onClick={() => setView(view === 'SCAN' ? 'ADMIN' : 'SCAN')}
-            className="p-3 md:p-5 bg-slate-900/90 backdrop-blur-xl border border-slate-700 rounded-2xl md:rounded-[1.5rem] shadow-2xl hover:scale-110 hover:border-blue-500/50 transition-all text-slate-400 hover:text-blue-400 group active:scale-95 relative flex items-center justify-center shrink-0"
-            title={view === 'SCAN' ? 'Go to Dashboard' : 'Go to Scan Interface'}
-          >
-            {view === 'SCAN' ? <Settings2 size={20} className="md:size-6" /> : <ScanLine size={20} className="md:size-6" />}
-            <div className="absolute right-full mr-3 top-1/2 -translate-y-1/2 py-2 px-4 bg-blue-600 text-white text-[10px] font-black rounded-xl opacity-0 group-hover:opacity-100 transition-all pointer-events-none uppercase tracking-widest whitespace-nowrap shadow-xl hidden md:block">
-              {view === 'SCAN' ? 'Dashboard Monitoring' : 'Gate Scan Interface'}
-            </div>
-          </button>
-        )}
-      </div>
-
-      {/* Conditional Rendering of Views */}
-      <main>
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={view}
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            transition={{ duration: 0.3 }}
-          >
-            {view === 'SCAN' ? <ScanInterface /> : <AdminDashboard userRole={userRole} />}
-          </motion.div>
-        </AnimatePresence>
-      </main>
-
-      {/* Footer Branding */}
-      <footer className="fixed bottom-4 left-4 pointer-events-none opacity-30 select-none">
-        <div className="text-[9px] font-black uppercase tracking-[0.3em] text-slate-500">
-          Powered by Warehouse ELNUSA BSD
-        </div>
-      </footer>
+      {mainContent}
     </div>
   );
 }

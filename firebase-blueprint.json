@@ -34,6 +34,18 @@
         "updatedAt": { "type": "string", "format": "date-time" },
         "message": { "type": "string" }
       }
+    },
+    "DailyStats": {
+      "title": "Daily Stats",
+      "description": "Daily summary of attendance",
+      "type": "object",
+      "properties": {
+        "in": { "type": "number" },
+        "out": { "type": "number" },
+        "pob": { "type": "number", "description": "Personnel On Board (Currently In)" },
+        "totalVisits": { "type": "number" }
+      },
+      "required": ["in", "out", "pob", "totalVisits"]
     }
   },
   "firestore": {
@@ -48,6 +60,10 @@
     "/system_config/{configId}": {
       "schema": "SystemConfig",
       "description": "Global configuration document"
+    },
+    "/stats/{date}": {
+      "schema": "DailyStats",
+      "description": "Real-time daily stats for counters"
     }
   }
 }

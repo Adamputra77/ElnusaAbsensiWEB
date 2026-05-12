@@ -19,6 +19,13 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // Stats
+    match /stats/{date} {
+      allow read: if true;
+      allow create, update: if true; // Allowed to enable real-time counters updated by clients
+      allow delete: if false;
+    }
+
     // Default deny
     match /{document=**} {
       allow read, write: if false;

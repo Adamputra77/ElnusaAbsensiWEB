@@ -39,7 +39,8 @@ import {
   Barcode as BarcodeIcon,
   Printer,
   X,
-  Hammer
+  Hammer,
+  AlertTriangle
 } from 'lucide-react';
 import { SEED_EMPLOYEES } from '../seedData';
 
@@ -65,42 +66,45 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
   const [barcodePerson, setBarcodePerson] = useState<Employee | null>(null);
 
   useEffect(() => {
-    fetchData();
-  }, [selectedDate, selectedDept]);
-
-  const fetchData = async () => {
     setIsLoading(true);
-    try {
-      // Fetch Employees first
-      const empSnap = await getDocs(collection(db, 'employees'));
+    
+    // 1. Employee Listener
+    const unsubEmployees = onSnapshot(collection(db, 'employees'), (snap) => {
       const empData: Record<string, Employee> = {};
-      empSnap.forEach(d => {
+      snap.forEach(d => {
         empData[d.id] = { id: d.id, ...d.data() } as Employee;
       });
       setEmployees(empData);
+      setIsLoading(false);
+    }, (err) => {
+      handleFirestoreError(err, OperationType.GET, 'employees');
+      setIsLoading(false);
+    });
 
-      // Only fetch logs if we have a selected date
-      if (selectedDate) {
-        const logsRef = collection(db, 'presence_logs');
-        const q = query(
-          logsRef, 
-          where('date', '==', selectedDate)
-        );
-        const logSnap = await getDocs(q);
-        const logList = logSnap.docs
-          .map(d => ({ 
-            id: d.id, 
-            ...d.data(),
-            timestamp: (d.data().timestamp as Timestamp)?.toDate()
-          }))
-          .sort((a, b) => (b.timestamp?.getTime() || 0) - (a.timestamp?.getTime() || 0)); // Descending
-        setLogs(logList);
-      }
-    } catch (err) {
-      handleFirestoreError(err, OperationType.GET, 'employees/presence_logs');
-    }
-    setIsLoading(false);
-  };
+    // 2. Logs Listener
+    const logsRef = collection(db, 'presence_logs');
+    const qLogs = query(
+      logsRef, 
+      where('date', '==', selectedDate)
+    );
+    const unsubLogs = onSnapshot(qLogs, (snap) => {
+      const logList = snap.docs
+        .map(d => ({ 
+          id: d.id, 
+          ...d.data(),
+          timestamp: (d.data().timestamp as Timestamp)?.toDate()
+        }))
+        .sort((a, b) => (b.timestamp?.getTime() || 0) - (a.timestamp?.getTime() || 0)); // Descending
+      setLogs(logList);
+    }, (err) => {
+      handleFirestoreError(err, OperationType.GET, 'presence_logs');
+    });
+
+    return () => {
+      unsubEmployees();
+      unsubLogs();
+    };
+  }, [selectedDate, selectedDept]);
 
   const handleAddPerson = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -120,7 +124,6 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
       alert(`${showAddModal === 'VISITOR' ? 'Visitor' : 'Employee'} berhasil ditambahkan!`);
       setShowAddModal(null);
       setNewPerson({ id: '', name: '', department: '' });
-      fetchData();
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, 'employees');
       alert("Gagal menambahkan data: " + (err instanceof Error ? err.message : String(err)));
@@ -140,7 +143,6 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
       
       alert(`Data berhasil diperbarui!`);
       setEditingPerson(null);
-      fetchData();
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, 'employees');
       alert("Gagal memperbarui data: " + (err instanceof Error ? err.message : String(err)));
@@ -153,7 +155,6 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
     try {
       await deleteDoc(doc(db, 'employees', id));
       alert('Data berhasil dihapus');
-      fetchData();
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, 'employees');
       alert('Gagal menghapus data');
@@ -234,7 +235,6 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
         console.log("Seeding committed successfully.");
         setSeedStep('success');
         setTimeout(() => setSeedStep('idle'), 3000);
-        fetchData();
       } catch (err) {
         handleFirestoreError(err, OperationType.WRITE, 'employees (seeding)');
         setSeedStep('idle');
@@ -552,6 +552,12 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
           </div>
           
           <div className="flex flex-col sm:flex-row items-stretch lg:items-center gap-3 md:gap-4 shrink-0">
+            {isMaintenanceMode && (
+              <div className="flex items-center gap-2 px-4 py-2 bg-orange-500/10 border border-orange-500/50 rounded-xl text-orange-500 animate-pulse">
+                <AlertTriangle size={14} />
+                <span className="text-[10px] font-black uppercase tracking-widest">Public Maintenance Active</span>
+              </div>
+            )}
             <div className="grid grid-cols-2 lg:flex items-center gap-2">
               <button 
                 onClick={() => setShowAddModal('EMPLOYEE')}
@@ -689,7 +695,7 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
                     {activeTab === 'LOGS' ? 'Attendance Log' : 'Employee Database'}
                   </h3>
                   <button 
-                    onClick={fetchData}
+                    onClick={() => {}} // Data is live
                     className="p-1.5 text-slate-600 hover:text-blue-400 transition-colors"
                   >
                     <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />

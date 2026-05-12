@@ -5,7 +5,7 @@ import { processScan, getDailyStats } from '../lib/attendance';
 import { DailyStats, PresenceType, Employee } from '../types';
 import { format } from 'date-fns';
 import Scanner from './Scanner';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, onSnapshot, doc, query } from 'firebase/firestore';
 import { db } from '../firebase';
 import { handleFirestoreError, OperationType } from '../lib/firestoreUtils';
 
@@ -14,23 +14,41 @@ export default function ScanInterface() {
   const [stats, setStats] = useState<DailyStats>({ in: 0, out: 0, pob: 0, totalVisits: 0 });
   const [hasEmployees, setHasEmployees] = useState<boolean | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' | null; employee?: Employee } | null>(null);
+  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' | null; employee?: Employee; scanType?: PresenceType } | null>(null);
   const [showCamera, setShowCamera] = useState(false);
+  
+  // Refs for immediate synchronous locking (React state is too slow for 100ms hardware repeats)
+  const isProcessingRef = useRef(false);
+  const recentScansRef = useRef<Record<string, number>>({});
+  
   const [currentTime, setCurrentTime] = useState(new Date());
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    fetchStats();
     checkEmployees();
-    const interval = setInterval(() => {
-      fetchStats();
-      checkEmployees();
-    }, 30000); 
+    
+    // Timer for display
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+
     return () => {
-      clearInterval(interval);
       clearInterval(timer);
     };
+  }, []);
+
+  // Dedicated real-time stats listener (separated for clarity)
+  useEffect(() => {
+    const today = format(new Date(), 'yyyy-MM-dd');
+    const unsubscribe = onSnapshot(doc(db, 'stats', today), (snap) => {
+      if (snap.exists()) {
+        setStats(snap.data() as DailyStats);
+      } else {
+        setStats({ in: 0, out: 0, pob: 0, totalVisits: 0 });
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, `stats/${today}`);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   // Keep input focused for barcode scanner
@@ -59,12 +77,30 @@ export default function ScanInterface() {
   };
 
   const handleScan = async (nik: string) => {
-    // 1. Immediate capture and clear to prevent race conditions with fast scanners
-    const rawValue = nik;
-    const cleanNik = rawValue.replace(/[\u0000-\u001F\u007F-\u009F]/g, '').trim();
+    // 1. Immediate capture and clear to prevent race conditions
+    const cleanNik = nik.replace(/[\u0000-\u001F\u007F-\u009F]/g, '').trim();
     
-    if (!cleanNik || isProcessing) return;
+    if (!cleanNik) return;
     
+    // Check Ref for immediate lock
+    if (isProcessingRef.current) return;
+
+    // 2. Cooldown check per NIK using Ref (Synchronous)
+    const now = Date.now();
+    const CLIENT_COOLDOWN = 10000; // 10 seconds client-side guard
+    const lastNIKTime = recentScansRef.current[cleanNik] || 0;
+    
+    if (now - lastNIKTime < CLIENT_COOLDOWN) {
+      console.log(`Cooldown active (REF) for ${cleanNik}...`);
+      setNikInput(''); // Clear input anyway
+      return;
+    }
+    
+    // Set immediate Ref locks
+    isProcessingRef.current = true;
+    recentScansRef.current[cleanNik] = now;
+    
+    // Set UI states
     setIsProcessing(true);
     setNikInput(''); // Clear UI input immediately
     
@@ -74,27 +110,31 @@ export default function ScanInterface() {
         setNotification({ 
           message: result.message, 
           type: 'success', 
-          employee: result.employee 
+          employee: result.employee,
+          scanType: result.type
         });
         fetchStats();
       } else {
-        // Show raw value in brackets for debugging hardware scanner output
+        // Show check if it was just a cooldown from server
         setNotification({ 
-          message: `${result.message} [${cleanNik}]`, 
-          type: 'error' 
+          message: result.message, 
+          type: result.message.includes('tunggu') ? 'error' : 'error' 
         });
       }
     } catch (err) {
       console.error("Scan Error:", err);
       setNotification({ message: 'Terjadi kegagalan sistem.', type: 'error' });
     } finally {
+      // Release locks
+      isProcessingRef.current = false;
       setIsProcessing(false);
-      // Refocus after short delay to ensure browser input is ready
+      
+      // Refocus after short delay
       setTimeout(() => {
         if (!showCamera && inputRef.current) {
           inputRef.current.focus();
         }
-      }, 50);
+      }, 100);
     }
 
     // Clear notification after 5 seconds
@@ -108,7 +148,13 @@ export default function ScanInterface() {
     if (e.key === 'Enter' || e.key === 'Tab') {
       e.preventDefault();
       const valueAtTrigger = (e.currentTarget as HTMLInputElement).value;
+      
       if (valueAtTrigger) {
+        // If already processing, just clear and ignore
+        if (isProcessingRef.current) {
+          setNikInput('');
+          return;
+        }
         handleScan(valueAtTrigger);
       }
     }
@@ -231,18 +277,24 @@ export default function ScanInterface() {
                   className={`w-full p-4 md:p-6 rounded-2xl flex items-center gap-4 md:gap-6 border backdrop-blur-sm ${
                     notification.type === 'error' 
                       ? 'bg-red-500/10 border-red-500/50' 
-                      : 'bg-green-500/10 border-green-500/50'
+                      : notification.scanType === PresenceType.OUT
+                        ? 'bg-red-500/10 border-red-500/50'
+                        : 'bg-green-500/10 border-green-500/50'
                   }`}
                 >
                   <div className={`w-12 h-12 md:w-16 md:h-16 rounded-full flex items-center justify-center shrink-0 shadow-lg ${
-                    notification.type === 'error' ? 'bg-red-500 shadow-red-500/40' : 'bg-green-500 shadow-green-500/40'
+                    notification.type === 'error' 
+                      ? 'bg-red-500 shadow-red-500/40' 
+                      : notification.scanType === PresenceType.OUT
+                        ? 'bg-red-500 shadow-red-500/40'
+                        : 'bg-green-500 shadow-green-500/40'
                   }`}>
-                    {notification.type === 'error' ? <LogOut size={24} className="text-white" /> : <LogIn size={24} className="text-white" />}
+                    {notification.type === 'error' || notification.scanType === PresenceType.OUT ? <LogOut size={24} className="text-white" /> : <LogIn size={24} className="text-white" />}
                   </div>
                   <div className="flex-1 overflow-hidden">
                     {notification.type === 'success' && notification.employee ? (
                       <>
-                        <p className="text-green-400 font-bold text-lg md:text-xl truncate">
+                        <p className={`${notification.scanType === PresenceType.OUT ? 'text-red-400' : 'text-green-400'} font-bold text-lg md:text-xl truncate`}>
                           {notification.message.split(',')[0]},
                         </p>
                         <p className="text-white text-xl md:text-2xl font-semibold uppercase tracking-tight truncate">{notification.employee.name}</p>
