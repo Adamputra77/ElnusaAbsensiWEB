@@ -1,4 +1,3 @@
-SILAHKAN COBA WEB INI Link : https://ais-dev-impksx5izawlmnjngvrcx7-909039118511.asia-southeast1.run.app
 
 Aplikasi BY TEAM IT MAHASISWA UNIVERSITAS ESA UNGGUL ADAM PUTRA PRATAMA RAHARJA
 
