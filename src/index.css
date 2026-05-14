@@ -11,6 +11,37 @@
   --color-brand-border: #1e293b;
 }
 
+@layer base {
+  @media print {
+    .no-print, header, footer, aside, nav, button {
+      display: none !important;
+    }
+    
+    body {
+      background: white !important;
+      color: black !important;
+    }
+
+    #main-layout-container {
+      display: none !important;
+    }
+
+    #print-all-container {
+      display: block !important;
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: auto;
+      visibility: visible !important;
+    }
+
+    #print-all-container * {
+      visibility: visible !important;
+    }
+  }
+}
+
 body {
   @apply antialiased bg-brand-bg text-slate-100;
 }

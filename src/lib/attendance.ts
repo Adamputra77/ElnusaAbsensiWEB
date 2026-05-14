@@ -165,18 +165,18 @@ export async function processScan(nik: string): Promise<{ success: boolean; mess
     const isVisitor = employee.isVisitor === true;
     
     const statsUpdate: any = {};
-    if (!isVisitor) {
-      if (nextType === PresenceType.IN) {
-        statsUpdate.in = increment(1);
-        statsUpdate.pob = increment(1);
-      } else {
-        statsUpdate.out = increment(1);
-        statsUpdate.pob = increment(-1);
+    if (nextType === PresenceType.IN) {
+      statsUpdate.in = increment(1);
+      statsUpdate.pob = increment(1);
+      if (isVisitor) {
+        statsUpdate.totalVisits = increment(1);
+        statsUpdate.visitorIn = increment(1);
       }
     } else {
-      // For visitors, we count total entries (or unique if preferred, but increments are simpler)
-      if (nextType === PresenceType.IN) {
-         statsUpdate.totalVisits = increment(1);
+      statsUpdate.out = increment(1);
+      statsUpdate.pob = increment(-1);
+      if (isVisitor) {
+        statsUpdate.visitorOut = increment(1);
       }
     }
 
@@ -223,35 +223,38 @@ export async function getDailyStats(date: string) {
         const t2 = (b.timestamp as any)?.seconds || 0;
         return t1 - t2;
       });
-    const employeeStates: Record<string, PresenceType> = {};
+    const personStates: Record<string, PresenceType> = {};
     const visitorInIds = new Set<string>();
 
     let inCount = 0;
     let outCount = 0;
+    let vInCount = 0;
+    let vOutCount = 0;
 
     logs.forEach(log => {
       const emp = empMap[log.employeeId];
       const isVisitor = emp?.isVisitor === true;
       
-      if (!isVisitor) {
-        // Stats for Employees
-        if (log.type === PresenceType.IN) inCount++;
-        else outCount++;
-        
-        // Track current state for POB (Personnel On Board)
-        employeeStates[log.employeeId] = log.type;
-      } else {
-        // Stats for Visitors
-        // User wants "Total Visitor" to be just a count of unique visitors who came in
-        if (log.type === PresenceType.IN) {
+      // Track current state for POB (Personnel On Board) - for EVERYONE
+      personStates[log.employeeId] = log.type;
+
+      if (log.type === PresenceType.IN) {
+        inCount++;
+        if (isVisitor) {
           visitorInIds.add(log.employeeId);
+          vInCount++;
+        }
+      } else {
+        outCount++;
+        if (isVisitor) {
+          vOutCount++;
         }
       }
     });
 
-    // POB is current employees active on site (last state is IN)
+    // POB is current people (employees + visitors) active on site (last state is IN)
     let pob = 0;
-    Object.values(employeeStates).forEach(status => {
+    Object.values(personStates).forEach(status => {
       if (status === PresenceType.IN) pob++;
     });
 
@@ -259,10 +262,12 @@ export async function getDailyStats(date: string) {
       in: inCount,
       out: outCount,
       pob,
-      totalVisits: visitorInIds.size // Now only counts UNIQUE Visitors who scanned IN
+      totalVisits: visitorInIds.size,
+      visitorIn: vInCount,
+      visitorOut: vOutCount
     };
   } catch (error) {
     handleFirestoreError(error, OperationType.GET, 'presence_logs/employees');
-    return { in: 0, out: 0, pob: 0, totalVisits: 0 };
+    return { in: 0, out: 0, pob: 0, totalVisits: 0, visitorIn: 0, visitorOut: 0 };
   }
 }

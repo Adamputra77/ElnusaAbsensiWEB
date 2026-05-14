@@ -11,7 +11,7 @@ import { handleFirestoreError, OperationType } from '../lib/firestoreUtils';
 
 export default function ScanInterface() {
   const [nikInput, setNikInput] = useState('');
-  const [stats, setStats] = useState<DailyStats>({ in: 0, out: 0, pob: 0, totalVisits: 0 });
+  const [stats, setStats] = useState<DailyStats>({ in: 0, out: 0, pob: 0, totalVisits: 0, visitorIn: 0, visitorOut: 0 });
   const [hasEmployees, setHasEmployees] = useState<boolean | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' | null; employee?: Employee; scanType?: PresenceType } | null>(null);
@@ -62,9 +62,13 @@ export default function ScanInterface() {
   }, [showCamera]);
 
   const fetchStats = async () => {
-    const today = format(new Date(), 'yyyy-MM-dd');
-    const s = await getDailyStats(today);
-    setStats(s);
+    try {
+      const today = format(new Date(), 'yyyy-MM-dd');
+      const s = await getDailyStats(today);
+      setStats(s);
+    } catch (err) {
+      console.error("Failed to fetch stats:", err);
+    }
   };
 
   const checkEmployees = async () => {
@@ -72,7 +76,8 @@ export default function ScanInterface() {
       const snap = await getDocs(collection(db, 'employees'));
       setHasEmployees(!snap.empty);
     } catch (err) {
-      handleFirestoreError(err, OperationType.GET, 'employees');
+      // Gracefully handle if linter or browser blocks this during boot
+      console.error("Failed to check employees:", err);
     }
   };
 
@@ -314,25 +319,46 @@ export default function ScanInterface() {
       </main>
 
       {/* Summary Stats Footer Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-6 p-3 md:p-8 bg-[#0f172a]/50 border-t border-slate-800 backdrop-blur-lg">
-        <div className="bg-slate-900/50 border border-slate-800 p-3 md:p-5 rounded-lg md:rounded-2xl flex flex-col">
-          <span className="text-slate-500 text-[8px] md:text-[10px] font-bold uppercase tracking-[0.1em] md:tracking-[0.2em] mb-1">Masuk</span>
-          <span className="text-xl md:text-4xl font-mono text-blue-400">{stats.in}</span>
-        </div>
-        <div className="bg-slate-900/50 border border-slate-800 p-3 md:p-5 rounded-lg md:rounded-2xl flex flex-col">
-          <span className="text-slate-500 text-[8px] md:text-[10px] font-bold uppercase tracking-[0.1em] md:tracking-[0.2em] mb-1">Keluar</span>
-          <span className="text-xl md:text-4xl font-mono text-slate-300">{stats.out}</span>
-        </div>
-        <div className="bg-blue-600/10 border border-blue-500/30 p-3 md:p-5 rounded-lg md:rounded-2xl flex flex-col relative overflow-hidden">
-          <div className="absolute right-[-5px] md:right-[-10px] bottom-[-5px] md:bottom-[-10px] opacity-10 pointer-events-none">
-            <Users size={32} className="text-blue-500 md:size-16" />
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-8 p-4 md:p-12 bg-[#0f172a]/60 border-t border-slate-800 backdrop-blur-2xl">
+        <div className="bg-slate-900/80 border-2 border-slate-800 p-6 md:p-10 rounded-2xl md:rounded-[2.5rem] flex flex-col relative overflow-hidden group hover:border-blue-500/30 transition-all">
+          <div className="absolute right-[-10px] top-[-10px] opacity-5 group-hover:opacity-10 transition-opacity">
+            <LogIn size={80} className="text-blue-500" />
           </div>
-          <span className="text-blue-400 text-[8px] md:text-[10px] font-bold uppercase tracking-[0.1em] md:tracking-[0.2em] mb-1">POB</span>
-          <span className="text-xl md:text-4xl font-mono text-white">{stats.pob}</span>
+          <span className="text-slate-500 text-lg md:text-2xl font-black uppercase tracking-[0.2em] mb-3">Masuk</span>
+          <span className="text-5xl md:text-8xl font-mono text-blue-400 font-black tracking-tighter transition-transform group-hover:scale-105 origin-left tracking-[-0.05em]">{stats.in}</span>
         </div>
-        <div className="bg-slate-900/80 border border-slate-800 p-3 md:p-5 rounded-lg md:rounded-2xl flex flex-col">
-          <span className="text-slate-500 text-[8px] md:text-[10px] font-bold uppercase tracking-[0.1em] md:tracking-[0.2em] mb-1">Total Vis.</span>
-          <span className="text-xl md:text-4xl font-mono text-white/80">{stats.totalVisits}</span>
+
+        <div className="bg-slate-900/80 border-2 border-slate-800 p-6 md:p-10 rounded-2xl md:rounded-[2.5rem] flex flex-col relative overflow-hidden group hover:border-orange-500/30 transition-all">
+          <div className="absolute right-[-10px] top-[-10px] opacity-5 group-hover:opacity-10 transition-opacity">
+            <LogOut size={80} className="text-orange-500" />
+          </div>
+          <span className="text-slate-500 text-lg md:text-2xl font-black uppercase tracking-[0.2em] mb-3">Keluar</span>
+          <span className="text-5xl md:text-8xl font-mono text-slate-300 font-black tracking-tighter transition-transform group-hover:scale-105 origin-left tracking-[-0.05em]">{stats.out}</span>
+        </div>
+
+        <div className="bg-blue-600/10 border-2 border-blue-500/40 p-6 md:p-10 rounded-2xl md:rounded-[2.5rem] flex flex-col relative overflow-hidden group hover:bg-blue-600/20 transition-all shadow-[0_0_50px_rgba(37,99,235,0.1)]">
+          <div className="absolute right-[-10px] top-[-10px] opacity-10 group-hover:opacity-20 transition-opacity">
+            <Users size={80} className="text-blue-500" />
+          </div>
+          <span className="text-blue-400 text-lg md:text-2xl font-black uppercase tracking-[0.2em] mb-3">POB <span className="text-xs md:text-sm text-blue-500/50 grow-0 ml-2">(Person On Board)</span></span>
+          <span className="text-5xl md:text-8xl font-mono text-white font-black tracking-tighter transition-transform group-hover:scale-105 origin-left tracking-[-0.05em]">{stats.pob}</span>
+        </div>
+
+        <div className="bg-slate-900/90 border-2 border-slate-800 p-6 md:p-10 rounded-2xl md:rounded-[2.5rem] flex flex-col relative overflow-hidden group hover:border-slate-600 transition-all">
+          <div className="absolute right-[-10px] top-[-10px] opacity-5 group-hover:opacity-10 transition-opacity">
+            <Scan size={80} className="text-slate-500" />
+          </div>
+          <span className="text-slate-500 text-lg md:text-2xl font-black uppercase tracking-[0.2em] mb-1">Visitor</span>
+          <div className="flex items-baseline gap-4">
+            <span className="text-5xl md:text-8xl font-mono text-white/90 font-black tracking-tighter transition-transform group-hover:scale-105 origin-left tracking-[-0.05em]">
+              {stats.visitorIn || 0}
+            </span>
+            <div className="flex flex-col">
+              <span className="text-xs md:text-sm font-bold text-green-500 uppercase">In</span>
+              <span className="text-xs md:text-sm font-bold text-red-500 uppercase">Out: {stats.visitorOut || 0}</span>
+            </div>
+          </div>
+          <p className="text-[10px] text-slate-600 uppercase tracking-widest mt-2">{stats.totalVisits} Unique Today</p>
         </div>
       </div>
 

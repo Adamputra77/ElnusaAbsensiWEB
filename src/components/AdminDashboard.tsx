@@ -58,12 +58,14 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isSeeding, setIsSeeding] = useState(false);
   const [showAddModal, setShowAddModal] = useState<'EMPLOYEE' | 'VISITOR' | null>(null);
-  const [newPerson, setNewPerson] = useState({ id: '', name: '', department: '' });
+  const [newPerson, setNewPerson] = useState({ id: '', name: '', department: '', nik: '' });
 
   const [activeTab, setActiveTab] = useState<'LOGS' | 'EMPLOYEES'>('LOGS');
   const [employeeSearch, setEmployeeSearch] = useState('');
   const [editingPerson, setEditingPerson] = useState<Employee | null>(null);
   const [barcodePerson, setBarcodePerson] = useState<Employee | null>(null);
+  const [isPrintingAll, setIsPrintingAll] = useState(false);
+  const [selectedPersonnel, setSelectedPersonnel] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     setIsLoading(true);
@@ -117,13 +119,14 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
       const docRef = doc(db, 'employees', newPerson.id);
       await setDoc(docRef, {
         ...newPerson,
+        nik: newPerson.nik || newPerson.id, // Fallback to id if nik not provided
         isVisitor: showAddModal === 'VISITOR',
         createdAt: Timestamp.now()
       });
       
       alert(`${showAddModal === 'VISITOR' ? 'Visitor' : 'Employee'} berhasil ditambahkan!`);
       setShowAddModal(null);
-      setNewPerson({ id: '', name: '', department: '' });
+      setNewPerson({ id: '', name: '', department: '', nik: '' });
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, 'employees');
       alert("Gagal menambahkan data: " + (err instanceof Error ? err.message : String(err)));
@@ -149,15 +152,18 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
     }
   };
 
-  const handleDeletePerson = async (id: string) => {
-    if (!confirm('Apakah Anda yakin ingin menghapus data ini?')) return;
-    
+  const handleDeletePerson = async (id: string, name: string) => {
+    if (!window.confirm(`Apakah Anda yakin ingin menghapus "${name}"? Tindakan ini tidak dapat dibatalkan.`)) {
+      return;
+    }
+
     try {
-      await deleteDoc(doc(db, 'employees', id));
-      alert('Data berhasil dihapus');
+      const docRef = doc(db, 'employees', id);
+      await deleteDoc(docRef);
+      alert(`Data "${name}" berhasil dihapus.`);
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, 'employees');
-      alert('Gagal menghapus data');
+      alert("Gagal menghapus data: " + (err instanceof Error ? err.message : String(err)));
     }
   };
 
@@ -175,6 +181,43 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
     printWindow.document.write('<script>window.onload = function() { window.print(); window.close(); }</script>');
     printWindow.document.write('</body></html>');
     printWindow.document.close();
+  };
+
+  const filteredPersonnelList = React.useMemo(() => {
+    return (Object.values(employees) as Employee[])
+      .filter(emp => 
+        emp.name.toLowerCase().includes(employeeSearch.toLowerCase()) || 
+        emp.id.toLowerCase().includes(employeeSearch.toLowerCase())
+      );
+  }, [employees, employeeSearch]);
+
+  const handlePrintAllBarcodes = () => {
+    if (selectedPersonnel.size === 0) {
+      alert("Pilih minimal satu karyawan untuk dicetak barcodenya.");
+      return;
+    }
+    // Briefly delay to ensure any state updates for the print container are flushed
+    setTimeout(() => {
+      window.print();
+    }, 100);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedPersonnel.size === filteredPersonnelList.length) {
+      setSelectedPersonnel(new Set());
+    } else {
+      setSelectedPersonnel(new Set(filteredPersonnelList.map(e => e.id)));
+    }
+  };
+
+  const toggleSelectPerson = (id: string) => {
+    const next = new Set(selectedPersonnel);
+    if (next.has(id)) {
+      next.delete(id);
+    } else {
+      next.add(id);
+    }
+    setSelectedPersonnel(next);
   };
 
   const [seedStep, setSeedStep] = useState<'idle' | 'confirming' | 'seeding' | 'success'>('idle');
@@ -319,7 +362,8 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
 
   return (
     <div className="min-h-screen bg-[#020617] text-slate-100 p-4 md:p-10 font-sans">
-      {/* Modal Add Person */}
+      <div id="main-layout-container" className="no-print">
+        {/* Modal Add Person */}
       <AnimatePresence>
         {showAddModal && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
@@ -342,7 +386,20 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
               <form onSubmit={handleAddPerson} className="space-y-5">
                 <div className="space-y-2">
                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">
-                    {showAddModal === 'VISITOR' ? 'ID Card / KTP Number' : 'Employee ID (NIK)'}
+                    {showAddModal === 'VISITOR' ? 'ID Card / KTP Number' : 'NIK (Nomor Induk Karyawan)'}
+                  </label>
+                  <input
+                    required
+                    type="text"
+                    placeholder="Enter NIK..."
+                    className="w-full h-12 px-4 rounded-xl bg-slate-950 border border-slate-800 text-white focus:border-blue-500 focus:outline-none transition-all"
+                    value={newPerson.nik}
+                    onChange={(e) => setNewPerson({...newPerson, nik: e.target.value, id: newPerson.id || e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">
+                    Internal System ID (Auto-fills from NIK)
                   </label>
                   <input
                     required
@@ -417,11 +474,21 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
               </h2>
               <form onSubmit={handleUpdatePerson} className="space-y-5">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">NIK / ID (Immutable)</label>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">NIK (Nomor Induk Karyawan)</label>
+                  <input
+                    required
+                    type="text"
+                    className="w-full h-12 px-4 rounded-xl bg-slate-950 border border-slate-800 text-white focus:border-blue-500 focus:outline-none transition-all"
+                    value={editingPerson.nik || editingPerson.id}
+                    onChange={(e) => setEditingPerson({...editingPerson, nik: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">System ID (Immutable)</label>
                   <input
                     disabled
                     type="text"
-                    className="w-full h-12 px-4 rounded-xl bg-slate-800 border border-slate-700 text-slate-500 cursor-not-allowed transition-all"
+                    className="w-full h-12 px-4 rounded-xl bg-slate-800 border border-slate-700 text-slate-500 cursor-not-allowed transition-all opacity-50"
                     value={editingPerson.id}
                   />
                 </div>
@@ -500,7 +567,7 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
                 <div className="bg-slate-50 p-8 rounded-[2.5rem] border border-slate-100 mb-8 w-full flex flex-col items-center shadow-inner gap-8">
                   <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
                     <QRCode 
-                      value={barcodePerson.id} 
+                      value={barcodePerson.nik || barcodePerson.id} 
                       size={160}
                       level="H"
                     />
@@ -508,7 +575,7 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
                   
                   <div className="flex flex-col items-center gap-4">
                     <Barcode 
-                      value={barcodePerson.id} 
+                      value={barcodePerson.nik || barcodePerson.id} 
                       width={1.8}
                       height={50}
                       fontSize={14}
@@ -517,7 +584,7 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
                     <div className="text-center mt-2">
                       <h2 className="text-2xl font-black uppercase tracking-tighter text-slate-900 leading-tight mb-1">{barcodePerson.name}</h2>
                       <p className="text-xs font-bold text-blue-600 uppercase tracking-widest">{barcodePerson.department}</p>
-                      <p className="text-[10px] font-mono font-bold text-slate-400 mt-2">ID: {barcodePerson.id}</p>
+                      <p className="text-[10px] font-mono font-bold text-slate-400 mt-2">NIK: {barcodePerson.nik || barcodePerson.id}</p>
                     </div>
                   </div>
                 </div>
@@ -704,6 +771,16 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
                 <span className="text-[10px] font-bold uppercase tracking-widest text-blue-400 bg-blue-400/10 border border-blue-400/20 px-3 py-1.5 rounded-lg">
                   {activeTab === 'LOGS' ? `${filteredLogs.length} Entries` : `${Object.keys(employees).length} Personnel`}
                 </span>
+                {activeTab === 'EMPLOYEES' && (
+                  <button 
+                    onClick={handlePrintAllBarcodes}
+                    disabled={selectedPersonnel.size === 0}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-800 disabled:text-slate-600 disabled:cursor-not-allowed text-white rounded-xl font-bold transition-all text-[10px] uppercase tracking-wider shadow-lg shadow-blue-600/20 active:scale-95"
+                  >
+                    <Printer size={14} />
+                    Cetak Identity Pass ({selectedPersonnel.size})
+                  </button>
+                )}
               </div>
               <div className="overflow-x-auto text-white">
                 {activeTab === 'LOGS' ? (
@@ -733,7 +810,7 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
                               <div className="font-bold text-slate-100 group-hover:text-blue-400 transition-colors capitalize text-xs md:text-base truncate max-w-[120px] md:max-w-none">
                                 {employees[log.employeeId]?.name || 'Unknown'}
                               </div>
-                              <div className="text-[9px] text-slate-600 font-mono mt-0.5">{log.employeeId}</div>
+                              <div className="text-[9px] text-slate-600 font-mono mt-0.5">NIK: {employees[log.employeeId]?.nik || log.employeeId}</div>
                               <div className="xs:hidden text-[9px] text-slate-400 mt-1">
                                 {log.timestamp ? format(log.timestamp, 'HH:mm') : '--:--'}
                               </div>
@@ -765,32 +842,57 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
                   <table className="w-full text-left min-w-[600px]">
                     <thead className="bg-[#020617]/50 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] border-b border-slate-800">
                       <tr>
+                        <th className="px-5 md:px-8 py-5 w-10">
+                          <div 
+                            className="flex items-center justify-center cursor-pointer"
+                            onClick={toggleSelectAll}
+                          >
+                            <input 
+                              type="checkbox" 
+                              readOnly
+                              className="w-5 h-5 rounded border-slate-700 bg-slate-900 accent-blue-600 cursor-pointer"
+                              checked={filteredPersonnelList.length > 0 && selectedPersonnel.size === filteredPersonnelList.length}
+                            />
+                          </div>
+                        </th>
+                        <th className="px-2 py-5 w-8 text-center">No.</th>
                         <th className="px-5 md:px-8 py-5">Personnel</th>
                         <th className="hidden sm:table-cell px-5 md:px-8 py-5">Status</th>
                         <th className="px-5 md:px-8 py-5 text-right w-20 md:w-32">Action</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/50">
-                      {Object.values(employees).length === 0 ? (
+                      {filteredPersonnelList.length === 0 ? (
                         <tr>
-                          <td colSpan={3} className="px-8 py-24 text-center opacity-20 text-xs">
+                          <td colSpan={5} className="px-8 py-24 text-center opacity-20 text-xs">
                             Database Kosong. Silahkan Seed Data.
                           </td>
                         </tr>
                       ) : (
-                        (Object.values(employees) as Employee[])
-                          .filter(emp => 
-                            emp.name.toLowerCase().includes(employeeSearch.toLowerCase()) || 
-                            emp.id.toLowerCase().includes(employeeSearch.toLowerCase())
-                          )
-                          .map(emp => (
-                          <tr key={emp.id} className="hover:bg-slate-800/30 transition-colors group text-[11px] md:text-base">
+                        filteredPersonnelList.map((emp, idx) => (
+                          <tr key={emp.id} className={`hover:bg-slate-800/30 transition-colors group text-[11px] md:text-base ${selectedPersonnel.has(emp.id) ? 'bg-blue-600/5' : ''}`}>
+                            <td className="px-5 md:px-8 py-4">
+                              <div 
+                                className="flex items-center justify-center cursor-pointer"
+                                onClick={() => toggleSelectPerson(emp.id)}
+                              >
+                                <input 
+                                  type="checkbox" 
+                                  readOnly
+                                  className="w-5 h-5 rounded border-slate-700 bg-slate-900 accent-blue-600 cursor-pointer"
+                                  checked={selectedPersonnel.has(emp.id)}
+                                />
+                              </div>
+                            </td>
+                            <td className="px-2 py-4 text-center text-[10px] text-slate-600 font-mono">
+                              {idx + 1}
+                            </td>
                             <td className="px-5 md:px-8 py-4">
                               <div className="font-bold text-slate-100 group-hover:text-blue-400 transition-colors truncate max-w-[140px] md:max-w-none">
                                 {emp.name}
                               </div>
                               <div className="flex items-center gap-2 mt-1">
-                                <span className="font-mono text-blue-500/60 text-[9px] md:text-xs">{emp.id}</span>
+                                <span className="font-mono text-blue-500/60 text-[9px] md:text-xs">NIK: {emp.nik || emp.id}</span>
                                 <span className="text-[9px] text-slate-600 font-bold uppercase truncate max-w-[80px] md:max-w-none">
                                   {emp.department}
                                 </span>
@@ -832,15 +934,13 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
                                 >
                                   <Edit2 size={12} />
                                 </button>
-                                {userRole === UserRole.ADMIN && (
-                                  <button 
-                                    onClick={() => handleDeletePerson(emp.id)}
-                                    className="p-2 bg-slate-800 hover:bg-red-600 text-slate-400 hover:text-white rounded-lg transition-all"
-                                    title="Delete"
-                                  >
-                                    <Trash2 size={12} />
-                                  </button>
-                                )}
+                                <button 
+                                  onClick={() => handleDeletePerson(emp.id, emp.name)}
+                                  className="p-2 bg-slate-800 hover:bg-red-600 text-slate-400 hover:text-white rounded-lg transition-all"
+                                  title="Delete"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
                               </div>
                             </td>
                           </tr>
@@ -906,6 +1006,55 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
               </div>
             </div>
           </div>
+        </div>
+      </div>
+      </div>
+
+      {/* Hidden Print-Only Container for All Barcodes */}
+      <div id="print-all-container" className="hidden print:block bg-white p-6">
+        <div className="grid grid-cols-2 gap-x-12 gap-y-16">
+          {(Object.values(employees) as Employee[])
+            .filter(emp => selectedPersonnel.has(emp.id))
+            .map((emp) => (
+            <div key={emp.id} className="border-2 border-slate-200 rounded-[2.5rem] p-10 flex flex-col items-center page-break-inside-avoid bg-white shadow-sm overflow-hidden relative">
+              <div className="text-center mb-6">
+                <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center font-bold text-white mb-3 mx-auto shadow-md">E</div>
+                <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 leading-none mb-1">Warehouse ELNUSA BSD</h3>
+                <p className="text-[8px] uppercase font-bold text-slate-300 tracking-widest">Attendance Identity Pass</p>
+              </div>
+              
+              <div className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100 mb-6 w-full flex flex-col items-center gap-6">
+                <div className="bg-white p-3 rounded-xl border border-slate-200">
+                  <QRCode 
+                    value={emp.nik || emp.id} 
+                    size={130}
+                    level="H"
+                  />
+                </div>
+
+                <div className="flex flex-col items-center gap-3">
+                  <Barcode 
+                    value={emp.nik || emp.id} 
+                    width={1.6}
+                    height={45}
+                    fontSize={12}
+                    background="#f8fafc"
+                  />
+                  <div className="text-center mt-1">
+                    <h2 className="text-xl font-black uppercase tracking-tighter text-slate-900 leading-tight mb-1">{emp.name}</h2>
+                    <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">{emp.department}</p>
+                    <p className="text-[8px] font-mono font-bold text-slate-400 mt-1">NIK: {emp.nik || emp.id}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="absolute bottom-4 text-center w-full">
+                <p className="text-[6px] text-slate-300 font-bold uppercase tracking-widest opacity-50">
+                  Official Systems Virtual • 2026
+                </p>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>
