@@ -42,7 +42,7 @@ export default function ScanInterface() {
       if (snap.exists()) {
         setStats(snap.data() as DailyStats);
       } else {
-        setStats({ in: 0, out: 0, pob: 0, totalVisits: 0 });
+        setStats({ in: 0, out: 0, pob: 0, totalVisits: 0, visitorIn: 0, visitorOut: 0 });
       }
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, `stats/${today}`);
@@ -351,14 +351,17 @@ export default function ScanInterface() {
           <span className="text-slate-500 text-lg md:text-2xl font-black uppercase tracking-[0.2em] mb-1">Visitor</span>
           <div className="flex items-baseline gap-4">
             <span className="text-5xl md:text-8xl font-mono text-white/90 font-black tracking-tighter transition-transform group-hover:scale-105 origin-left tracking-[-0.05em]">
-              {stats.visitorIn || 0}
+              {(stats.visitorIn || 0) - (stats.visitorOut || 0)}
             </span>
             <div className="flex flex-col">
-              <span className="text-xs md:text-sm font-bold text-green-500 uppercase">In</span>
-              <span className="text-xs md:text-sm font-bold text-red-500 uppercase">Out: {stats.visitorOut || 0}</span>
+              <span className="text-[10px] md:text-xs font-bold text-blue-500 uppercase leading-none">Inside</span>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-[8px] md:text-[10px] font-bold text-green-500/80 uppercase">In: {stats.visitorIn || 0}</span>
+                <span className="text-[8px] md:text-[10px] font-bold text-red-500/80 uppercase">Out: {stats.visitorOut || 0}</span>
+              </div>
             </div>
           </div>
-          <p className="text-[10px] text-slate-600 uppercase tracking-widest mt-2">{stats.totalVisits} Unique Today</p>
+          <p className="text-[10px] text-slate-600 uppercase tracking-widest mt-2">{stats.totalVisits} Total Unique Today</p>
         </div>
       </div>
 

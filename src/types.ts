@@ -33,6 +33,6 @@ export interface DailyStats {
   out: number;
   pob: number;
   totalVisits: number;
-  visitorIn?: number;
-  visitorOut?: number;
+  visitorIn: number;
+  visitorOut: number;
 }
