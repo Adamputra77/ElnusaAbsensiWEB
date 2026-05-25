@@ -44,7 +44,7 @@ import {
   Clock
 } from 'lucide-react';
 import { SEED_EMPLOYEES } from '../seedData';
-import { calculateTodayManHours } from '../lib/manHours';
+import { calculateActiveRealtimeHours } from '../lib/manHours';
 
 import { UserRole } from '../types';
 
@@ -68,6 +68,32 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
   const [barcodePerson, setBarcodePerson] = useState<Employee | null>(null);
   const [isPrintingAll, setIsPrintingAll] = useState(false);
   const [selectedPersonnel, setSelectedPersonnel] = useState<Set<string>>(new Set());
+
+  const [completedManHours, setCompletedManHours] = useState<number>(0);
+  const [manHoursNow, setManHoursNow] = useState(new Date());
+
+  // Real-time listener and clock ticking for cumulative running man hours
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'stats', 'warehouse'), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        setCompletedManHours(data.completedManHours || 0);
+      } else {
+        setCompletedManHours(0);
+      }
+    }, (error) => {
+      console.error("Failed to sync warehouse completed man hours:", error);
+    });
+
+    const timer = setInterval(() => {
+      setManHoursNow(new Date());
+    }, 60000);
+
+    return () => {
+      unsub();
+      clearInterval(timer);
+    };
+  }, []);
 
   useEffect(() => {
     setIsLoading(true);
@@ -367,16 +393,9 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
   const inList = Object.keys(employees).filter(id => currentStates[id] === PresenceType.IN);
   const outList = Object.keys(employees).filter(id => currentStates[id] === PresenceType.OUT);
 
-  // Calculate historical/live man hours for the selected date on the admin panel
-  const isToday = selectedDate === format(new Date(), 'yyyy-MM-dd');
-  const calcNow = isToday 
-    ? new Date() 
-    : (() => {
-        const d_now = new Date(selectedDate);
-        d_now.setHours(23, 59, 59, 999);
-        return d_now;
-      })();
-  const manHours = calculateTodayManHours(logs, employees, selectedDate, calcNow);
+  // Calculate live active and running completed man hours
+  const activeManHours = calculateActiveRealtimeHours(logs, manHoursNow);
+  const totalAccumManHours = completedManHours + activeManHours;
 
   return (
     <div className="min-h-screen bg-[#020617] text-slate-100 p-4 md:p-10 font-sans">
@@ -990,9 +1009,9 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
               <div className="absolute right-[-10px] top-[-10px] opacity-10">
                 <Clock size={60} className="text-[#10b981]" />
               </div>
-              <span className="text-[#10b981] text-[10px] font-bold uppercase tracking-[0.2em] mb-2">MAN HOURS</span>
+              <span className="text-[#10b981] text-[10px] font-bold uppercase tracking-[0.2em] mb-2">MAN HOURS (Accumulative)</span>
               <div className="flex items-baseline gap-1">
-                <span className="text-3xl font-mono font-black text-white">{manHours.totalHours.toFixed(1)}</span>
+                <span className="text-3xl font-mono font-black text-white">{totalAccumManHours.toFixed(1)}</span>
                 <span className="text-xs text-[#10b981] font-bold uppercase">HRS</span>
               </div>
               <span className="text-[8px] text-slate-500 uppercase mt-1">Total Jam Kerja Karyawan</span>

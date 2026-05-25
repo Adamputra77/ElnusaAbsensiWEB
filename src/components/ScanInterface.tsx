@@ -8,13 +8,15 @@ import Scanner from './Scanner';
 import { collection, getDocs, onSnapshot, doc, query, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import { handleFirestoreError, OperationType } from '../lib/firestoreUtils';
-import { calculateTodayManHours } from '../lib/manHours';
+import { calculateActiveRealtimeHours } from '../lib/manHours';
 
 export default function ScanInterface() {
   const [nikInput, setNikInput] = useState('');
   const [stats, setStats] = useState<DailyStats>({ in: 0, out: 0, pob: 0, totalVisits: 0, visitorIn: 0, visitorOut: 0 });
   const [employees, setEmployees] = useState<Record<string, Employee>>({});
   const [logs, setLogs] = useState<PresenceLog[]>([]);
+  const [completedManHours, setCompletedManHours] = useState<number>(0);
+  const [manHoursNow, setManHoursNow] = useState(new Date());
   const [hasEmployees, setHasEmployees] = useState<boolean | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' | null; employee?: Employee; scanType?: PresenceType } | null>(null);
@@ -88,6 +90,27 @@ export default function ScanInterface() {
       handleFirestoreError(error, OperationType.GET, `stats/${today}`);
     });
 
+    return () => unsubscribe();
+  }, []);
+
+  // Throttled timer (every 1 minute) for realtime active man hours computation
+  useEffect(() => {
+    const timer = setInterval(() => setManHoursNow(new Date()), 60000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Listen in real-time to running cumulative completed man hours
+  useEffect(() => {
+    const unsubscribe = onSnapshot(doc(db, 'stats', 'warehouse'), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        setCompletedManHours(data.completedManHours || 0);
+      } else {
+        setCompletedManHours(0);
+      }
+    }, (error) => {
+      console.error("Failed to sync warehouse completed man hours:", error);
+    });
     return () => unsubscribe();
   }, []);
 
@@ -206,7 +229,10 @@ export default function ScanInterface() {
   };
 
   const todayStr = format(currentTime, 'yyyy-MM-dd');
-  const { totalHours } = calculateTodayManHours(logs, employees, todayStr, currentTime);
+  // Dynamic live active man hours for checked-in users (employees + visitors)
+  const activeManHours = calculateActiveRealtimeHours(logs, manHoursNow);
+  // Total dashboard accumulative hours = Completed (Persisted in DB) + Active (Live)
+  const totalAccumManHours = completedManHours + activeManHours;
 
   return (
     <div className="flex flex-col min-h-screen bg-[#020617] text-slate-100 font-sans overflow-hidden">
@@ -391,9 +417,9 @@ export default function ScanInterface() {
           <div className="absolute right-[-10px] top-[-10px] opacity-10 group-hover:opacity-20 transition-opacity">
             <Clock size={80} className="text-emerald-500" />
           </div>
-          <span className="text-emerald-400 text-lg md:text-2xl font-black uppercase tracking-[0.2em] mb-3">MAN HOURS <span className="text-xs md:text-sm text-emerald-500/50 grow-0 ml-2">(Today)</span></span>
+          <span className="text-emerald-400 text-lg md:text-2xl font-black uppercase tracking-[0.2em] mb-3">MAN HOURS <span className="text-xs md:text-sm text-emerald-500/50 grow-0 ml-2">(Accumulative)</span></span>
           <span className="text-5xl md:text-8xl font-mono text-white font-black tracking-tighter transition-transform group-hover:scale-105 origin-left tracking-[-0.05em] flex items-baseline gap-1">
-            {totalHours.toFixed(1)} <span className="text-lg md:text-3xl text-emerald-400 font-bold uppercase">HRS</span>
+            {totalAccumManHours.toFixed(1)} <span className="text-lg md:text-3xl text-emerald-400 font-bold uppercase">HRS</span>
           </span>
         </div>
 

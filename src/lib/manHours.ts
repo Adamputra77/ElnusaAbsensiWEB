@@ -1,132 +1,71 @@
-import { PresenceLog, Employee, PresenceType } from '../types';
-import { startOfDay, subDays, format } from 'date-fns';
-
-interface ManHoursResult {
-  totalHours: number;
-  userHours: Record<string, { name: string; hours: number; isInside: boolean }>;
-}
+import { PresenceLog, PresenceType } from '../types';
 
 /**
- * Calculates real-time total and per-employee Man Hours worked "today"
- * taking into account cross-day shifts, missing check-outs, and double scans.
+ * Calculates live ticking active man hours for anyone currently checked in.
+ * Includes both registered employees and visitors (no filtering isVisitor).
  * 
- * Formula: Man Hours = Σ (checkoutTime - checkinTime)
- * If still checked in: checkoutTime = now (realtime)
- * 
- * @param logs List of presence logs for yesterday and today (to support night shifts)
- * @param employees Map of employee profiles, keyed by ID
- * @param todayDateStr The current date string in 'yyyy-MM-dd' format
- * @param now The current ticking Date object
+ * Safe against double-scans and missing checkouts (> 24h).
  */
-export function calculateTodayManHours(
+export function calculateActiveRealtimeHours(
   logs: PresenceLog[],
-  employees: Record<string, Employee>,
-  todayDateStr: string,
   now: Date
-): ManHoursResult {
-  const startOfToday = startOfDay(now);
-  const endOfToday = new Date(startOfToday.getTime() + 24 * 60 * 60 * 1000 - 1);
+): number {
+  if (!logs || logs.length === 0) return 0;
 
-  // Group logs by employee. Only include non-visitor employees
-  const logsByUser: Record<string, PresenceLog[]> = {};
+  // Group logs by employeeId to find their absolute latest log in logs array (yesterday + today)
+  const latestLogPerUser: Record<string, PresenceLog> = {};
   
   logs.forEach(log => {
     if (!log.employeeId) return;
-    
-    const emp = employees[log.employeeId];
-    // Keep only registered employees who are NOT visitors
-    if (emp?.isVisitor === true) return;
-    
-    if (!logsByUser[log.employeeId]) {
-      logsByUser[log.employeeId] = [];
+    const existing = latestLogPerUser[log.employeeId];
+    if (!existing) {
+      latestLogPerUser[log.employeeId] = log;
+      return;
     }
-    logsByUser[log.employeeId].push(log);
+    
+    const tCurrent = log.timestamp 
+      ? (typeof log.timestamp.toDate === 'function' ? log.timestamp.toDate().getTime() : new Date(log.timestamp).getTime()) 
+      : 0;
+    const tExisting = existing.timestamp 
+      ? (typeof existing.timestamp.toDate === 'function' ? existing.timestamp.toDate().getTime() : new Date(existing.timestamp).getTime()) 
+      : 0;
+      
+    if (tCurrent > tExisting) {
+      latestLogPerUser[log.employeeId] = log;
+    }
   });
 
-  let totalMs = 0;
-  const userHours: Record<string, { name: string; hours: number; isInside: boolean }> = {};
-
-  Object.entries(logsByUser).forEach(([empId, userLogs]) => {
-    const emp = employees[empId];
-    const empName = emp ? emp.name : `Employee ${empId}`;
-
-    // Sort logs chronologically
-    const sortedLogs = [...userLogs].sort((a, b) => {
-      const t1 = a.timestamp 
-        ? (typeof a.timestamp.toDate === 'function' ? a.timestamp.toDate().getTime() : new Date(a.timestamp).getTime()) 
-        : Date.now();
-      const t2 = b.timestamp 
-        ? (typeof b.timestamp.toDate === 'function' ? b.timestamp.toDate().getTime() : new Date(b.timestamp).getTime()) 
-        : Date.now();
-      return t1 - t2;
-    });
-
-    let activeInTime: Date | null = null;
-    let employeeWorkedTodayMs = 0;
-
-    sortedLogs.forEach(log => {
-      const logTime = log.timestamp
-        ? (typeof log.timestamp.toDate === 'function' ? log.timestamp.toDate() : new Date(log.timestamp))
-        : new Date();
-
-      if (log.type === PresenceType.IN) {
-        // Set check-in if none is active
-        if (activeInTime === null) {
-          activeInTime = logTime;
-        }
-      } else if (log.type === PresenceType.OUT) {
-        if (activeInTime !== null) {
-          // We have a pair: activeInTime -> logTime
-          const checkIn = activeInTime;
-          const checkOut = logTime;
-
-          // Determine the overlap with "today"
-          const overlapStart = checkIn.getTime() < startOfToday.getTime() ? startOfToday : checkIn;
-          const overlapEnd = checkOut;
-
-          const durationMs = overlapEnd.getTime() - overlapStart.getTime();
-          if (durationMs > 0) {
-            employeeWorkedTodayMs += durationMs;
-          }
-
-          // Reset check-in state
-          activeInTime = null;
-        }
-      }
-    });
-
-    // Handle edge case: still checked in (no matching checkout yet on these logs)
-    let isInside = false;
-    
-    // Check if the overall final state of candidate on today is inside.
-    // In our system, the final state of activeInTime determines if they are inside.
-    if (activeInTime !== null) {
-      isInside = true;
-      const checkIn = activeInTime;
-      const checkOut = now; // Real-time calculation up to now
-
-      const overlapStart = checkIn.getTime() < startOfToday.getTime() ? startOfToday : checkIn;
-      const overlapEnd = checkOut;
-
-      const durationMs = overlapEnd.getTime() - overlapStart.getTime();
-      if (durationMs > 0) {
-        employeeWorkedTodayMs += durationMs;
+  let activeMs = 0;
+  
+  Object.values(latestLogPerUser).forEach(log => {
+    if (log.type === PresenceType.IN) {
+      const checkInTime = log.timestamp
+        ? (typeof log.timestamp.toDate === 'function' ? log.timestamp.toDate().getTime() : new Date(log.timestamp).getTime())
+        : now.getTime();
+        
+      const diffMs = now.getTime() - checkInTime;
+      
+      // Handle edge cases:
+      // 1. If checkInTime is in the future relative to now (due to slight device clock differences), skip.
+      // 2. Missing checkout guard: If they checked in more than 24 hours ago, we treat it as lapsed (0 active hours).
+      if (diffMs > 0 && diffMs < 24 * 3600 * 1000) {
+        activeMs += diffMs;
       }
     }
-
-    const workedHours = employeeWorkedTodayMs / (1000 * 60 * 60);
-    totalMs += employeeWorkedTodayMs;
-
-    userHours[empId] = {
-      name: empName,
-      hours: Number(workedHours.toFixed(2)),
-      isInside
-    };
   });
 
-  const totalHours = totalMs / (1000 * 60 * 60);
-  return {
-    totalHours: Number(totalHours.toFixed(2)),
-    userHours
-  };
+  return activeMs / (1000 * 60 * 60);
+}
+
+/**
+ * Backwards compatibility helper for daily calculation if needed elsewhere.
+ */
+export function calculateTodayManHours(
+  logs: PresenceLog[],
+  employees: Record<string, any>,
+  todayDateStr: string,
+  now: Date
+): { totalHours: number } {
+  const activeHours = calculateActiveRealtimeHours(logs, now);
+  return { totalHours: activeHours };
 }
