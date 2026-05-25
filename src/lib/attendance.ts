@@ -164,11 +164,12 @@ export async function processScan(nik: string): Promise<{ success: boolean; mess
     const statsRef = doc(db, 'stats', todayStr);
     const isVisitor = employee.isVisitor === true;
     
-    const statsUpdate: any = {};
+    const statsUpdate: Record<string, any> = {};
     if (nextType === PresenceType.IN) {
       statsUpdate.in = increment(1);
       statsUpdate.pob = increment(1);
       if (isVisitor) {
+        // We use totalVisits to represent entries, and visitorIn to represent total check-ins
         statsUpdate.totalVisits = increment(1);
         statsUpdate.visitorIn = increment(1);
       }
@@ -262,7 +263,7 @@ export async function getDailyStats(date: string) {
       in: inCount,
       out: outCount,
       pob,
-      totalVisits: visitorInIds.size,
+      totalVisits: visitorInIds.size, // Unique IDs who came IN
       visitorIn: vInCount,
       visitorOut: vOutCount
     };

@@ -1,17 +1,20 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Scan, Users, LogIn, LogOut, Search, AlertCircle } from 'lucide-react';
+import { Scan, Users, LogIn, LogOut, Search, AlertCircle, Clock } from 'lucide-react';
 import { processScan, getDailyStats } from '../lib/attendance';
-import { DailyStats, PresenceType, Employee } from '../types';
-import { format } from 'date-fns';
+import { DailyStats, PresenceType, Employee, PresenceLog } from '../types';
+import { format, subDays } from 'date-fns';
 import Scanner from './Scanner';
-import { collection, getDocs, onSnapshot, doc, query } from 'firebase/firestore';
+import { collection, getDocs, onSnapshot, doc, query, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import { handleFirestoreError, OperationType } from '../lib/firestoreUtils';
+import { calculateTodayManHours } from '../lib/manHours';
 
 export default function ScanInterface() {
   const [nikInput, setNikInput] = useState('');
   const [stats, setStats] = useState<DailyStats>({ in: 0, out: 0, pob: 0, totalVisits: 0, visitorIn: 0, visitorOut: 0 });
+  const [employees, setEmployees] = useState<Record<string, Employee>>({});
+  const [logs, setLogs] = useState<PresenceLog[]>([]);
   const [hasEmployees, setHasEmployees] = useState<boolean | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' | null; employee?: Employee; scanType?: PresenceType } | null>(null);
@@ -25,14 +28,51 @@ export default function ScanInterface() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    checkEmployees();
-    
     // Timer for display
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
 
     return () => {
       clearInterval(timer);
     };
+  }, []);
+
+  // Real-time listener for employees list to map details offline & check hasEmployees state
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'employees'), (snap) => {
+      const empMap: Record<string, Employee> = {};
+      snap.forEach(d => {
+        empMap[d.id] = { id: d.id, ...d.data() } as Employee;
+      });
+      setEmployees(empMap);
+      setHasEmployees(snap.size > 0);
+    }, (error) => {
+      console.error("Failed to sync employees list:", error);
+    });
+
+    return () => unsub();
+  }, []);
+
+  // Real-time listener for yesterday and today's logs to support night shifts and real-time ticking Man Hours
+  useEffect(() => {
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    const yesterdayStr = format(subDays(new Date(), 1), 'yyyy-MM-dd');
+    
+    const q = query(
+      collection(db, 'presence_logs'),
+      where('date', 'in', [yesterdayStr, todayStr])
+    );
+
+    const unsubscribe = onSnapshot(q, (snap) => {
+      const logsList = snap.docs.map(d => ({
+        id: d.id,
+        ...d.data()
+      } as PresenceLog));
+      setLogs(logsList);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'presence_logs');
+    });
+
+    return () => unsubscribe();
   }, []);
 
   // Dedicated real-time stats listener (separated for clarity)
@@ -164,6 +204,9 @@ export default function ScanInterface() {
       }
     }
   };
+
+  const todayStr = format(currentTime, 'yyyy-MM-dd');
+  const { totalHours } = calculateTodayManHours(logs, employees, todayStr, currentTime);
 
   return (
     <div className="flex flex-col min-h-screen bg-[#020617] text-slate-100 font-sans overflow-hidden">
@@ -319,7 +362,7 @@ export default function ScanInterface() {
       </main>
 
       {/* Summary Stats Footer Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-8 p-4 md:p-12 bg-[#0f172a]/60 border-t border-slate-800 backdrop-blur-2xl">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-8 p-4 md:p-12 bg-[#0f172a]/60 border-t border-slate-800 backdrop-blur-2xl">
         <div className="bg-slate-900/80 border-2 border-slate-800 p-6 md:p-10 rounded-2xl md:rounded-[2.5rem] flex flex-col relative overflow-hidden group hover:border-blue-500/30 transition-all">
           <div className="absolute right-[-10px] top-[-10px] opacity-5 group-hover:opacity-10 transition-opacity">
             <LogIn size={80} className="text-blue-500" />
@@ -344,6 +387,16 @@ export default function ScanInterface() {
           <span className="text-5xl md:text-8xl font-mono text-white font-black tracking-tighter transition-transform group-hover:scale-105 origin-left tracking-[-0.05em]">{stats.pob}</span>
         </div>
 
+        <div className="bg-emerald-600/10 border-2 border-emerald-500/40 p-6 md:p-10 rounded-2xl md:rounded-[2.5rem] flex flex-col relative overflow-hidden group hover:bg-emerald-600/20 transition-all shadow-[0_0_50px_rgba(16,185,129,0.1)]">
+          <div className="absolute right-[-10px] top-[-10px] opacity-10 group-hover:opacity-20 transition-opacity">
+            <Clock size={80} className="text-emerald-500" />
+          </div>
+          <span className="text-emerald-400 text-lg md:text-2xl font-black uppercase tracking-[0.2em] mb-3">MAN HOURS <span className="text-xs md:text-sm text-emerald-500/50 grow-0 ml-2">(Today)</span></span>
+          <span className="text-5xl md:text-8xl font-mono text-white font-black tracking-tighter transition-transform group-hover:scale-105 origin-left tracking-[-0.05em] flex items-baseline gap-1">
+            {totalHours.toFixed(1)} <span className="text-lg md:text-3xl text-emerald-400 font-bold uppercase">HRS</span>
+          </span>
+        </div>
+
         <div className="bg-slate-900/90 border-2 border-slate-800 p-6 md:p-10 rounded-2xl md:rounded-[2.5rem] flex flex-col relative overflow-hidden group hover:border-slate-600 transition-all">
           <div className="absolute right-[-10px] top-[-10px] opacity-5 group-hover:opacity-10 transition-opacity">
             <Scan size={80} className="text-slate-500" />
@@ -351,7 +404,7 @@ export default function ScanInterface() {
           <span className="text-slate-500 text-lg md:text-2xl font-black uppercase tracking-[0.2em] mb-1">Visitor</span>
           <div className="flex items-baseline gap-4">
             <span className="text-5xl md:text-8xl font-mono text-white/90 font-black tracking-tighter transition-transform group-hover:scale-105 origin-left tracking-[-0.05em]">
-              {(stats.visitorIn || 0) - (stats.visitorOut || 0)}
+              {Math.max(0, (stats.visitorIn || 0) - (stats.visitorOut || 0))}
             </span>
             <div className="flex flex-col">
               <span className="text-[10px] md:text-xs font-bold text-blue-500 uppercase leading-none">Inside</span>
@@ -361,7 +414,7 @@ export default function ScanInterface() {
               </div>
             </div>
           </div>
-          <p className="text-[10px] text-slate-600 uppercase tracking-widest mt-2">{stats.totalVisits} Total Unique Today</p>
+          <p className="text-[10px] text-slate-600 uppercase tracking-widest mt-2">{stats.totalVisits || 0} Total Unique Today</p>
         </div>
       </div>
 

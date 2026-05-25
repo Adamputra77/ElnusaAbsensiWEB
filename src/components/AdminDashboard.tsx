@@ -40,9 +40,11 @@ import {
   Printer,
   X,
   Hammer,
-  AlertTriangle
+  AlertTriangle,
+  Clock
 } from 'lucide-react';
 import { SEED_EMPLOYEES } from '../seedData';
+import { calculateTodayManHours } from '../lib/manHours';
 
 import { UserRole } from '../types';
 
@@ -83,11 +85,15 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
       setIsLoading(false);
     });
 
-    // 2. Logs Listener
+    // 2. Logs Listener (load both selected date and its previous day's logs to support cross-day shifts)
     const logsRef = collection(db, 'presence_logs');
+    const d = new Date(selectedDate);
+    d.setDate(d.getDate() - 1);
+    const yesterdayDateStr = format(d, 'yyyy-MM-dd');
+
     const qLogs = query(
       logsRef, 
-      where('date', '==', selectedDate)
+      where('date', 'in', [yesterdayDateStr, selectedDate])
     );
     const unsubLogs = onSnapshot(qLogs, (snap) => {
       const logList = snap.docs
@@ -344,6 +350,7 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
   };
 
   const filteredLogs = logs.filter(log => {
+    if (log.date !== selectedDate) return false;
     const emp = employees[log.employeeId];
     if (selectedDept !== 'All' && emp?.department !== selectedDept) return false;
     return true;
@@ -359,6 +366,17 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
 
   const inList = Object.keys(employees).filter(id => currentStates[id] === PresenceType.IN);
   const outList = Object.keys(employees).filter(id => currentStates[id] === PresenceType.OUT);
+
+  // Calculate historical/live man hours for the selected date on the admin panel
+  const isToday = selectedDate === format(new Date(), 'yyyy-MM-dd');
+  const calcNow = isToday 
+    ? new Date() 
+    : (() => {
+        const d_now = new Date(selectedDate);
+        d_now.setHours(23, 59, 59, 999);
+        return d_now;
+      })();
+  const manHours = calculateTodayManHours(logs, employees, selectedDate, calcNow);
 
   return (
     <div className="min-h-screen bg-[#020617] text-slate-100 p-4 md:p-10 font-sans">
@@ -965,6 +983,19 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
                 <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">OUT</span>
                 <span className="text-2xl md:text-3xl font-mono text-red-400">{outList.length}</span>
               </div>
+            </div>
+
+            {/* Man Hours Card */}
+            <div className="bg-[#10b981]/10 border border-[#10b981]/30 p-5 rounded-2xl flex flex-col relative overflow-hidden group shadow-[0_0_30px_rgba(16,185,129,0.05)]">
+              <div className="absolute right-[-10px] top-[-10px] opacity-10">
+                <Clock size={60} className="text-[#10b981]" />
+              </div>
+              <span className="text-[#10b981] text-[10px] font-bold uppercase tracking-[0.2em] mb-2">MAN HOURS</span>
+              <div className="flex items-baseline gap-1">
+                <span className="text-3xl font-mono font-black text-white">{manHours.totalHours.toFixed(1)}</span>
+                <span className="text-xs text-[#10b981] font-bold uppercase">HRS</span>
+              </div>
+              <span className="text-[8px] text-slate-500 uppercase mt-1">Total Jam Kerja Karyawan</span>
             </div>
 
             {/* List Panels */}
