@@ -17,7 +17,6 @@ export const CATEGORIES_LIST = [
   "Harian",
   "Driver",
   "Office Elnusa",
-  "Petrolog",
   "HSE",
   "Medic"
 ];
@@ -117,7 +116,6 @@ export function generateDynamicMockData(todayRealStats?: { pob: number; visitorI
       "Harian": 0.04,
       "Driver": 0.03,
       "Office Elnusa": 0.03,
-      "Petrolog": 0.02,
       "HSE": 0.01,
       "Medic": 0.01
     };
