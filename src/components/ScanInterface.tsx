@@ -451,7 +451,7 @@ export default function ScanInterface() {
           <span>Status: ONLINE</span>
         </div>
         <div className="text-center md:text-right">
-          © 2026 Warehouse ELNUSA BSD • Systems Virtual
+          © 2026 Warehouse ELNUSA BSD • Systems Virtual • System by Pratama Raharja
         </div>
       </footer>
     </div>

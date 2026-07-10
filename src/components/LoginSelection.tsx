@@ -269,6 +269,11 @@ export const LoginSelection: React.FC<LoginSelectionProps> = ({ onSelectRole }) 
           </div>
         )}
       </AnimatePresence>
+
+      {/* Signature in the bottom-left corner */}
+      <div className="absolute bottom-6 left-6 text-[9px] font-black uppercase tracking-[0.3em] text-slate-500/50 pointer-events-none select-none z-20">
+        System by Pratama Raharja
+      </div>
     </div>
   );
 };

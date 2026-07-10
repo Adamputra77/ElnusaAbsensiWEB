@@ -371,9 +371,12 @@ export default function App() {
         </main>
 
         {/* Branding Footer */}
-        <footer className="fixed bottom-4 left-4 pointer-events-none opacity-30 select-none">
+        <footer className="fixed bottom-4 left-4 pointer-events-none opacity-30 select-none flex flex-col gap-1">
           <div className="text-[9px] font-black uppercase tracking-[0.3em] text-slate-500">
             Powered by Warehouse ELNUSA BSD
+          </div>
+          <div className="text-[8px] font-black uppercase tracking-[0.25em] text-slate-600">
+            System by Pratama Raharja
           </div>
         </footer>
       </>
