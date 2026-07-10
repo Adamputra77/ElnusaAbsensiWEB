@@ -7,29 +7,23 @@ export interface DashboardData {
 
 export const CATEGORIES_LIST = [
   "Operation",
-  "EFK",
+  "OS (Office Service)",
+  "Engineering",
+  "Carpenter",
   "Visitor",
   "Security",
-  "Spektra",
   "ARP",
   "SCM",
   "Harian",
   "Driver",
   "Office Elnusa",
-  "ETSA",
-  "Petrofin",
-  "LD Service",
   "Petrolog",
   "HSE",
-  "Medic",
-  "Sigma"
+  "Medic"
 ];
 
 export const SHIFTS_LIST = [
-  "Shift 1 (Pagi)",
-  "Shift 2 (Siang)",
-  "Shift 3 (Malam)",
-  "Non-Shift (Office)"
+  "Shift 1 (Pagi)"
 ];
 
 // Color palette matching the Cyber Dark/Cyan/Green Elnusa theme
@@ -113,22 +107,19 @@ export function generateDynamicMockData(todayRealStats?: { pob: number; visitorI
     // Give some weight to each category
     const weights: Record<string, number> = {
       "Operation": 0.35,
-      "EFK": 0.15,
+      "OS (Office Service)": 0.15,
+      "Engineering": 0.10,
+      "Carpenter": 0.05,
       "Security": 0.10,
       "Visitor": 0.08,
-      "Spektra": 0.06,
       "ARP": 0.04,
       "SCM": 0.04,
       "Harian": 0.04,
       "Driver": 0.03,
       "Office Elnusa": 0.03,
-      "ETSA": 0.02,
-      "Petrofin": 0.02,
-      "LD Service": 0.01,
-      "Petrolog": 0.01,
+      "Petrolog": 0.02,
       "HSE": 0.01,
-      "Medic": 0.01,
-      "Sigma": 0.00
+      "Medic": 0.01
     };
 
     // Override visitor count if today
@@ -155,10 +146,7 @@ export function generateDynamicMockData(todayRealStats?: { pob: number; visitorI
 
     let shiftRemaining = dayTotal;
     const shiftWeights: Record<string, number> = {
-      "Shift 1 (Pagi)": 0.45,
-      "Shift 2 (Siang)": 0.30,
-      "Shift 3 (Malam)": 0.15,
-      "Non-Shift (Office)": 0.10
+      "Shift 1 (Pagi)": 1.0
     };
 
     SHIFTS_LIST.forEach((shift, idx) => {
