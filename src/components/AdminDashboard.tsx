@@ -637,9 +637,14 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
                 </button>
               </div>
               
-              <p className="text-center text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-6 opacity-30">
-                Official Systems Virtual • 2026
-              </p>
+              <div className="text-center mt-6 opacity-30 flex flex-col gap-1 items-center justify-center">
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                  Official Systems Virtual • 2026
+                </p>
+                <p className="text-[8px] text-slate-500 font-bold uppercase tracking-[0.2em]">
+                  System by Pratama Raharja
+                </p>
+              </div>
             </motion.div>
           </div>
         )}
@@ -1098,9 +1103,12 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
                 </div>
               </div>
 
-              <div className="absolute bottom-4 text-center w-full">
-                <p className="text-[6px] text-slate-300 font-bold uppercase tracking-widest opacity-50">
+              <div className="absolute bottom-4 text-center w-full flex flex-col gap-0.5 items-center justify-center opacity-50">
+                <p className="text-[6px] text-slate-300 font-bold uppercase tracking-widest">
                   Official Systems Virtual • 2026
+                </p>
+                <p className="text-[5px] text-slate-400 font-bold uppercase tracking-[0.15em]">
+                  System by Pratama Raharja
                 </p>
               </div>
             </div>

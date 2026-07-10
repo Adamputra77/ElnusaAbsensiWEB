@@ -711,9 +711,12 @@ export default function WarehouseDashboard({ onBack }: WarehouseDashboardProps) 
       </div>
 
       {/* Footer copyright */}
-      <footer className="mt-10 text-center opacity-35 pb-6">
+      <footer className="mt-10 text-center opacity-35 pb-6 flex flex-col gap-1">
         <p className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-500">
           Warehouse ELNUSA BSD Monitoring Dashboard Center • 2026
+        </p>
+        <p className="text-[8px] font-black uppercase tracking-[0.25em] text-slate-600">
+          System by Pratama Raharja
         </p>
       </footer>
     </div>
