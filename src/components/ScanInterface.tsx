@@ -171,9 +171,7 @@ export default function ScanInterface() {
       <header className="h-auto md:h-16 border-b border-slate-800 bg-[#0f172a]/80 backdrop-blur-md flex flex-col md:flex-row items-center justify-between px-4 md:px-8 py-3 md:py-0 flex-shrink-0 z-50 gap-2 md:gap-0">
         <div className="flex items-center gap-3 md:gap-4 w-full md:w-auto justify-between md:justify-start">
           <div className="flex items-center gap-3 md:gap-4 shrink-0">
-            <div className="w-8 h-8 md:w-10 md:h-10 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-lg md:text-xl shadow-[0_0_15px_rgba(37,99,235,0.4)] text-white shrink-0">
-              E
-            </div>
+            <img src="/logo-elnusa.png" alt="Elnusa" className="w-8 h-8 md:w-10 md:h-10 object-contain" />
             <div className="min-w-0">
               <h1 className="text-base md:text-lg font-bold tracking-tight text-white leading-none uppercase truncate">Warehouse ELNUSA BSD</h1>
               <p className="text-[8px] md:text-[10px] text-slate-400 uppercase tracking-widest mt-1">Presence System</p>

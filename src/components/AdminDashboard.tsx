@@ -559,7 +559,7 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
 
               <div id="barcode-to-print" className="flex flex-col items-center">
                 <div className="mb-8 text-center">
-                  <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center font-bold text-white mb-4 mx-auto shadow-lg shadow-blue-600/20">E</div>
+                  <img src="/logo-elnusa.png" alt="Elnusa" className="w-12 h-12 object-contain mb-4 mx-auto" />
                   <h3 className="text-sm font-black uppercase tracking-[0.3em] text-slate-400 mb-1 leading-none">Warehouse ELNUSA BSD</h3>
                   <p className="text-[10px] uppercase font-bold text-slate-300 tracking-widest">Attendance Identity Pass</p>
                 </div>
@@ -611,7 +611,7 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
       <div className="max-w-7xl mx-auto">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 md:gap-8 mb-8 md:mb-12">
           <div className="flex items-center gap-4 md:gap-5">
-            <div className="w-10 h-10 md:w-14 md:h-14 bg-blue-600 rounded-xl flex items-center justify-center font-bold text-lg md:text-2xl shadow-lg shadow-blue-600/20 text-white shrink-0">E</div>
+            <img src="/logo-elnusa.png" alt="Elnusa" className="w-10 h-10 md:w-14 md:h-14 object-contain shrink-0" />
             <div className="min-w-0">
               <h1 className="text-xl md:text-3xl font-black text-white tracking-tighter uppercase italic truncate">DASHBOARD {userRole === UserRole.ADMIN ? 'ADMIN' : 'SECURITY'}</h1>
               <p className="text-slate-500 text-[8px] md:text-xs uppercase tracking-[0.3em] mt-1 font-medium">{userRole === UserRole.ADMIN ? 'Full System Access' : 'Gate Monitoring Terminal'}</p>
@@ -1018,7 +1018,7 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
             .map((emp) => (
             <div key={emp.id} className="border-2 border-slate-200 rounded-[2.5rem] p-10 flex flex-col items-center page-break-inside-avoid bg-white shadow-sm overflow-hidden relative">
               <div className="text-center mb-6">
-                <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center font-bold text-white mb-3 mx-auto shadow-md">E</div>
+                <img src="/logo-elnusa.png" alt="Elnusa" className="w-10 h-10 object-contain mb-3 mx-auto" />
                 <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 leading-none mb-1">Warehouse ELNUSA BSD</h3>
                 <p className="text-[8px] uppercase font-bold text-slate-300 tracking-widest">Attendance Identity Pass</p>
               </div>

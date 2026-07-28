@@ -12,7 +12,7 @@ export default defineConfig(({mode}) => {
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['favicon.svg', 'pwa-icon.svg', 'icon-180.png', 'icon-120.png'],
+        includeAssets: ['favicon.png', 'logo-elnusa.png', 'icon-180.png', 'icon-120.png'],
         manifest: {
           name: 'Warehouse Elnusa BSD - Presence System',
           short_name: 'ElnusaAbsensi',
@@ -25,9 +25,9 @@ export default defineConfig(({mode}) => {
           start_url: '/',
           icons: [
             {
-              src: 'pwa-icon.svg',
+              src: 'logo-elnusa.png',
               sizes: 'any',
-              type: 'image/svg+xml',
+              type: 'image/png',
               purpose: 'any',
             },
             {
@@ -45,6 +45,7 @@ export default defineConfig(({mode}) => {
           ],
         },
         workbox: {
+          maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
           globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
           runtimeCaching: [
             {
@@ -67,6 +68,15 @@ export default defineConfig(({mode}) => {
     ],
     define: {
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
+    },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            'vendor-recharts': ['recharts'],
+          },
+        },
+      },
     },
     resolve: {
       alias: {

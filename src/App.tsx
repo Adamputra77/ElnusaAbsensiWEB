@@ -4,13 +4,14 @@ import AdminDashboard from './components/AdminDashboard';
 import { LoginSelection } from './components/LoginSelection';
 import Barcode from 'react-barcode';
 import QRCode from 'react-qr-code';
-import { Settings2, ScanLine, LogOut, User, Clock, Bell, History, ArrowRight, Loader2, Calendar, Smartphone, QrCode, AlertTriangle, Hammer } from 'lucide-react';
+import { Settings2, ScanLine, LayoutDashboard, LogOut, User, Clock, Bell, History, ArrowRight, Loader2, Calendar, Smartphone, QrCode, AlertTriangle, Hammer } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Employee, PresenceLog, UserRole } from './types';
 import { collection, query, where, orderBy, getDocs, Timestamp, onSnapshot, doc } from 'firebase/firestore';
 import { db } from './firebase';
 import { format } from 'date-fns';
 import { handleFirestoreError, OperationType } from './lib/firestoreUtils';
+import WarehouseDashboard from './components/WarehouseDashboard';
 
 type ViewMode = 'SCAN' | 'ADMIN';
 
@@ -21,6 +22,18 @@ export default function App() {
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
   const [view, setView] = useState<ViewMode>('SCAN');
   const [maintenance, setMaintenance] = useState<{ active: boolean; message: string }>({ active: false, message: '' });
+  const [path, setPath] = useState(window.location.pathname);
+
+  useEffect(() => {
+    const handlePopState = () => setPath(window.location.pathname);
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  const navigateTo = (newPath: string) => {
+    window.history.pushState({}, '', newPath);
+    setPath(newPath);
+  };
 
   useEffect(() => {
     // Listen to maintenance mode
@@ -95,7 +108,11 @@ export default function App() {
 
   // Define the main content based on role
   let mainContent;
-  if (!userRole) {
+
+  // Dashboard route (Admin only)
+  if (path === '/dashboard' && (userRole === UserRole.ADMIN || userRole === UserRole.SECURITY)) {
+    mainContent = <WarehouseDashboard onBack={() => navigateTo('/')} />;
+  } else if (!userRole) {
     mainContent = <LoginSelection onSelectRole={handleLoginSelect} />;
   } else if (userRole === UserRole.EMPLOYEE && authEmployee) {
     mainContent = (
@@ -319,6 +336,18 @@ export default function App() {
               {view === 'SCAN' ? <Settings2 size={20} className="md:size-6" /> : <ScanLine size={20} className="md:size-6" />}
               <div className="absolute right-full mr-3 top-1/2 -translate-y-1/2 py-2 px-4 bg-blue-600 text-white text-[10px] font-black rounded-xl opacity-0 group-hover:opacity-100 transition-all pointer-events-none uppercase tracking-widest whitespace-nowrap shadow-xl hidden md:block">
                 {view === 'SCAN' ? 'Dashboard Monitoring' : 'Gate Scan Interface'}
+              </div>
+            </button>
+          )}
+          {userRole !== UserRole.EMPLOYEE && (
+            <button
+              onClick={() => navigateTo('/dashboard')}
+              className="p-3 md:p-5 bg-cyan-600/20 backdrop-blur-xl border border-cyan-500/30 rounded-2xl md:rounded-[1.5rem] shadow-2xl hover:scale-110 hover:border-cyan-400/60 transition-all text-cyan-400 hover:text-cyan-300 group active:scale-95 relative flex items-center justify-center shrink-0"
+              title="POB Warehouse Monitoring"
+            >
+              <LayoutDashboard size={20} className="md:size-6" />
+              <div className="absolute right-full mr-3 top-1/2 -translate-y-1/2 py-2 px-4 bg-cyan-600 text-white text-[10px] font-black rounded-xl opacity-0 group-hover:opacity-100 transition-all pointer-events-none uppercase tracking-widest whitespace-nowrap shadow-xl hidden md:block">
+                POB Monitoring Dashboard
               </div>
             </button>
           )}
