@@ -128,11 +128,6 @@ export default function Scanner({ onScan }: ScannerProps) {
       }
     };
 
-    if (isPwa && isiOS) {
-      setError('Buka halaman ini di Safari, bukan dari Home Screen. Tap "Share" > "Add to Home Screen" lalu buka dari Safari dulu sekali untuk izinkan kamera.');
-      return;
-    }
-
     startCameraWithRetry();
 
     return () => {
@@ -157,26 +152,28 @@ export default function Scanner({ onScan }: ScannerProps) {
       )}
 
       {error && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-red-950/90 backdrop-blur-sm z-10 p-6 text-center">
-          <Camera className="text-red-500 mb-2" size={40} />
-          <p className="text-sm font-bold text-red-200 leading-relaxed">{error}</p>
-          <div className="flex flex-col gap-2 mt-2">
-            {!isPwa && (
-              <button
-                onClick={() => window.location.reload()}
-                className="px-6 py-2 bg-red-600 text-white text-[10px] font-black rounded-xl uppercase tracking-widest hover:bg-red-500"
-              >
-                Coba Lagi
-              </button>
-            )}
-            {isiOS && (
-              <a
-                href={window.location.href}
-                className="px-6 py-2 bg-blue-600 text-white text-[10px] font-black rounded-xl uppercase tracking-widest hover:bg-blue-500 flex items-center justify-center gap-2"
-              >
-                <ExternalLink size={12} />
-                Buka di Safari
-              </a>
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-red-950/90 backdrop-blur-sm z-10 p-5 text-center">
+          <Camera className="text-red-500" size={36} />
+          <p className="text-xs font-bold text-red-200 leading-relaxed">{error}</p>
+          <div className="flex flex-col gap-2 mt-1">
+            <button
+              onClick={() => window.location.reload()}
+              className="px-5 py-2 bg-red-600 text-white text-[9px] font-black rounded-xl uppercase tracking-widest hover:bg-red-500"
+            >
+              Coba Lagi
+            </button>
+            {isPwa && isiOS && (
+              <div className="mt-1 px-4 py-2 bg-slate-900/80 rounded-xl border border-slate-700">
+                <p className="text-[8px] text-slate-400 font-bold uppercase tracking-widest mb-1">
+                  Buka di Safari Manual
+                </p>
+                <p className="text-[9px] font-mono text-blue-400 select-all break-all">
+                  {typeof window !== 'undefined' ? window.location.href.replace(window.location.protocol + '//', '') : 'elnusa-absensi-web.vercel.app'}
+                </p>
+                <p className="text-[7px] text-slate-500 mt-1 uppercase tracking-wider">
+                  Salin URL di atas, buka Safari, lalu tempel
+                </p>
+              </div>
             )}
           </div>
         </div>
