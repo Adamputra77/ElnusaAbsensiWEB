@@ -1,0 +1,35 @@
+@startuml
+skinparam backgroundColor #FEFEFE
+skinparam activityBorderColor #333333
+skinparam activityBackgroundColor #E8F0FE
+skinparam arrowColor #333333
+skinparam conditionStyle inside
+
+(*) --> "User membuka sistem"
+--> "Menampilkan halaman login\ndan pemilihan peran"
+--> if "Pilih peran Admin?" then
+--> [ya] "Masukkan password admin"
+--> if "Password benar?" then
+--> [ya] "Dashboard Admin\n(CRUD, Export, Cetak)"
+--> else
+--> [tidak] "Tampilkan error"
+--> endif
+--> else
+--> [tidak] if "Pilih peran Security?" then
+--> [ya] "Masukkan password security"
+--> if "Password benar?" then
+--> [ya] "Scan Interface\n(Scan NIK/QR, IN/OUT)"
+--> else
+--> [tidak] "Tampilkan error"
+--> endif
+--> else
+--> [tidak] "Masukkan NIK"
+--> if "NIK terdaftar?" then
+--> [ya] "Employee Portal\n(QR, Barcode, Histori)"
+--> else
+--> [tidak] "Tampilkan error"
+--> endif
+--> endif
+--> endif
+--> (*)
+@enduml

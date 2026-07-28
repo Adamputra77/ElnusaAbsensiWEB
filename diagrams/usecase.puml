@@ -1,0 +1,59 @@
+@startuml
+skinparam backgroundColor #FEFEFE
+skinparam actorStyle awesome
+left to right direction
+skinparam packageStyle rectangle
+skinparam usecaseBorderColor #333333
+skinparam usecaseBackgroundColor #F5F5F5
+skinparam actorBorderColor #333333
+skinparam actorBackgroundColor #E8E8E8
+
+actor Admin as admin
+actor Security as security
+actor Employee as employee
+
+rectangle "Sistem Absensi\nWarehouse Elnusa BSD" {
+  usecase "Login" as UC1
+  usecase "Kelola Data Pegawai\n(CRUD)" as UC2
+  usecase "Lihat Log Absensi" as UC3
+  usecase "Filter Log\n(Tanggal/Departemen)" as UC4
+  usecase "Cari Pegawai" as UC5
+  usecase "Export Laporan PDF" as UC6
+  usecase "Cetak Kartu Identitas\n(Single/Bulk)" as UC7
+  usecase "Seeding Data Sampel" as UC8
+  usecase "Toggle Maintenance\nMode" as UC9
+  usecase "Lihat Status Presensi\nReal-time" as UC10
+  usecase "Scan NIK Manual" as UC11
+  usecase "Scan QR/Barcode\nvia Kamera" as UC12
+  usecase "Proses Absensi\nIN/OUT" as UC13
+  usecase "Lihat Statistik Harian" as UC14
+  usecase "Lihat QR Code\nPribadi" as UC15
+  usecase "Lihat Barcode\nPribadi" as UC16
+  usecase "Lihat Histori\nAbsensi" as UC17
+  usecase "Lihat Ringkasan\nKehadiran" as UC18
+}
+
+admin --> UC1
+admin --> UC2
+admin --> UC3
+admin --> UC4
+admin --> UC5
+admin --> UC6
+admin --> UC7
+admin --> UC8
+admin --> UC9
+admin --> UC10
+
+security --> UC1
+security --> UC11
+security --> UC12
+security --> UC13
+security --> UC14
+
+employee --> UC1
+employee --> UC15
+employee --> UC16
+employee --> UC17
+employee --> UC18
+
+@enduml

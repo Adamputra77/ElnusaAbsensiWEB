@@ -1,0 +1,48 @@
+@startuml
+skinparam backgroundColor #FEFEFE
+skinparam sequenceArrowColor #333333
+skinparam actorBorderColor #333333
+skinparam participantBorderColor #333333
+skinparam participantBackgroundColor #E8F0FE
+
+actor Security as sec
+participant "ScanInterface\n(React)" as frontend
+participant "Firebase\nFirestore" as db
+participant "Employees\nCollection" as emp
+participant "PresenceLogs\nCollection" as log
+participant "Stats\nCollection" as stats
+
+sec -> frontend : Input NIK / scan QR
+activate frontend
+
+frontend -> db : getEmployeeByNik(nik)
+activate db
+db -> emp : Query dokumen
+emp --> db : Data pegawai
+db --> frontend : Employee | null
+deactivate db
+
+alt Pegawai ditemukan
+  frontend -> db : getLatestLog(employeeId, date)
+  activate db
+  db -> log : Query log terakhir
+  log --> db : Log | null
+  db --> frontend : PresenceLog | null
+  deactivate db
+
+  frontend -> frontend : Tentukan IN/OUT\nberdasarkan log terakhir
+
+  frontend -> db : writeBatch()
+  activate db
+  db -> log : Set dokumen log baru
+  db -> stats : Update statistik harian
+  db --> frontend : Batch selesai
+  deactivate db
+
+  frontend -> sec : Tampilkan notifikasi\n(nama, dept, waktu, tipe)
+else Pegawai tidak ditemukan
+  frontend -> sec : Tampilkan notifikasi error
+end
+
+deactivate frontend
+@enduml

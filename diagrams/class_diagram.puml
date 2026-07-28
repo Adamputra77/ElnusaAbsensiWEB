@@ -1,0 +1,99 @@
+@startuml
+skinparam backgroundColor #FEFEFE
+skinparam classBorderColor #333333
+skinparam classBackgroundColor #FFF8E1
+skinparam classAttributeFontColor #333333
+skinparam arrowColor #333333
+
+class Employee {
+  +id: string
+  +name: string
+  +department: string
+  +nik: string
+  +isVisitor?: boolean
+  +createdAt?: Timestamp
+}
+
+class PresenceLog {
+  +id?: string
+  +employeeId: string
+  +timestamp: Timestamp
+  +type: PresenceType
+  +date: string
+}
+
+class DailyStats {
+  +in: number
+  +out: number
+  +pob: number
+  +totalVisits: number
+  +visitorIn: number
+  +visitorOut: number
+}
+
+class SystemConfig {
+  +maintenanceMode: boolean
+  +message: string
+  +updatedAt: Timestamp
+}
+
+enum UserRole {
+  ADMIN
+  SECURITY
+  EMPLOYEE
+}
+
+enum PresenceType {
+  IN
+  OUT
+}
+
+class App {
+  +render()
+  -handleLogin()
+  -handleLogout()
+}
+
+class LoginSelection {
+  +render()
+  -handleAdminLogin()
+  -handleSecurityLogin()
+  -handleEmployeeLogin()
+}
+
+class AdminDashboard {
+  +render()
+  -addEmployee()
+  -editEmployee()
+  -deleteEmployee()
+  -exportPDF()
+  -seedData()
+  -toggleMaintenance()
+  -printCard()
+}
+
+class ScanInterface {
+  +render()
+  -handleScanInput()
+  -toggleCamera()
+  -processScan()
+}
+
+class Scanner {
+  +render()
+  -startCamera()
+  -onDecode()
+  -stopCamera()
+}
+
+Employee "1" --o{ "many" PresenceLog : memiliki >
+PresenceLog "many" }o-- "1" DailyStats : diagregasi >
+PresenceLog --> PresenceType
+
+App --> LoginSelection
+App --> AdminDashboard
+App --> ScanInterface
+LoginSelection --> UserRole
+AdminDashboard --> Employee
+ScanInterface --> Scanner
+@enduml

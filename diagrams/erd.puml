@@ -1,0 +1,47 @@
+@startuml
+skinparam backgroundColor #FEFEFE
+skinparam entityBorderColor #333333
+skinparam entityBackgroundColor #FFF8E1
+skinparam arrowColor #333333
+
+entity "Employee" as employee {
+  *id : string <<PK>>
+  --
+  *name : string
+  *department : string
+  *nik : string
+  isVisitor : boolean
+  createdAt : timestamp
+}
+
+entity "PresenceLog" as log {
+  *id : string <<PK>>
+  --
+  *employeeId : string <<FK>>
+  *type : IN/OUT
+  *timestamp : timestamp
+  *date : string
+}
+
+entity "DailyStats" as stats {
+  *date : string <<PK>>
+  --
+  in : number
+  out : number
+  pob : number
+  totalVisits : number
+  visitorIn : number
+  visitorOut : number
+}
+
+entity "SystemConfig" as config {
+  *id : string <<PK>>
+  --
+  maintenanceMode : boolean
+  message : string
+  updatedAt : timestamp
+}
+
+employee ||--o{ log : "memiliki"
+log }o--|| stats : "diagregasi\nmenjadi"
+@enduml

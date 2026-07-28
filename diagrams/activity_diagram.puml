@@ -1,0 +1,32 @@
+@startuml
+skinparam backgroundColor #FEFEFE
+skinparam activityBorderColor #333333
+skinparam activityBackgroundColor #E8F0FE
+skinparam arrowColor #333333
+
+(*) --> "Security memindai NIK\n(manual keyboard/kamera QR)"
+--> "Membersihkan input\ndari karakter kontrol"
+--> "Firestore lookup pegawai\n(6 strategi pencarian)"
+
+--> if "Pegawai ditemukan?" then
+
+--> [ya] "Cek log absensi\nyang terakhir"
+
+--> if "Log terakhir = IN?" then
+-->   [ya] "Tentukan tipe = OUT"
+--> else
+-->   [tidak] "Tentukan tipe = IN"
+--> endif
+
+--> "Buat log baru\ndi koleksi presence_logs"
+--> "Update statistik harian\ndi koleksi stats"
+--> "Tampilkan notifikasi sukses\n(nama, tipe, waktu)"
+
+--> else
+
+--> [tidak] "Tampilkan notifikasi error\nPegawai tidak ditemukan"
+
+--> endif
+
+--> (*)
+@enduml

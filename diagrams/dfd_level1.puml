@@ -1,0 +1,43 @@
+@startuml
+skinparam backgroundColor #FEFEFE
+skinparam rectangleStyle simple
+skinparam databaseStyle thin
+skinparam arrowColor #333333
+
+rectangle Admin
+rectangle Security
+rectangle Employee
+
+rectangle "1.0\nProses Login" as P1
+rectangle "2.0\nKelola Data\nPegawai" as P2
+rectangle "3.0\nProses Absensi\nScan" as P3
+rectangle "4.0\nGenerate\nLaporan" as P4
+rectangle "5.0\nCetak Kartu\nIdentitas" as P5
+
+database "DS1\nEmployees" as DS1
+database "DS2\nPresence Logs" as DS2
+database "DS3\nDaily Stats" as DS3
+database "DS4\nSystem Config" as DS4
+
+Admin --> P1 : login
+Admin --> P2 : CRUD pegawai
+Admin --> P4 : export PDF
+Admin --> P5 : cetak kartu
+
+Security --> P1 : login
+Security --> P3 : scan NIK/QR
+
+Employee --> P1 : login NIK
+
+P2 --> DS1 : read/write
+P3 --> DS1 : lookup pegawai
+P3 --> DS2 : write log
+P3 --> DS3 : update stats
+P4 --> DS2 : read logs
+P4 --> DS1 : read employees
+P5 --> DS1 : read data
+
+system --> Admin : laporan, status
+system --> Security : notifikasi, stats
+system --> Employee : QR, histori
+@enduml
