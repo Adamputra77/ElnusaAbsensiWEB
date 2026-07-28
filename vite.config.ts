@@ -12,7 +12,7 @@ export default defineConfig(({mode}) => {
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['favicon.svg', 'pwa-icon.svg'],
+        includeAssets: ['favicon.svg', 'pwa-icon.svg', 'icon-180.png', 'icon-120.png'],
         manifest: {
           name: 'Warehouse Elnusa BSD - Presence System',
           short_name: 'ElnusaAbsensi',
@@ -29,6 +29,18 @@ export default defineConfig(({mode}) => {
               sizes: 'any',
               type: 'image/svg+xml',
               purpose: 'any',
+            },
+            {
+              src: 'icon-120.png',
+              sizes: '120x120',
+              type: 'image/png',
+              purpose: 'any',
+            },
+            {
+              src: 'icon-180.png',
+              sizes: '180x180',
+              type: 'image/png',
+              purpose: 'any maskable',
             },
           ],
         },
