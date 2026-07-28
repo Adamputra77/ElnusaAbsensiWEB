@@ -40,11 +40,9 @@ import {
   Printer,
   X,
   Hammer,
-  AlertTriangle,
-  Clock
+  AlertTriangle
 } from 'lucide-react';
 import { SEED_EMPLOYEES } from '../seedData';
-import { calculateActiveRealtimeHours } from '../lib/manHours';
 
 import { UserRole } from '../types';
 
@@ -69,32 +67,6 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
   const [isPrintingAll, setIsPrintingAll] = useState(false);
   const [selectedPersonnel, setSelectedPersonnel] = useState<Set<string>>(new Set());
 
-  const [completedManHours, setCompletedManHours] = useState<number>(0);
-  const [manHoursNow, setManHoursNow] = useState(new Date());
-
-  // Real-time listener and clock ticking for cumulative running man hours
-  useEffect(() => {
-    const unsub = onSnapshot(doc(db, 'stats', 'warehouse'), (snap) => {
-      if (snap.exists()) {
-        const data = snap.data();
-        setCompletedManHours(data.completedManHours || 0);
-      } else {
-        setCompletedManHours(0);
-      }
-    }, (error) => {
-      console.error("Failed to sync warehouse completed man hours:", error);
-    });
-
-    const timer = setInterval(() => {
-      setManHoursNow(new Date());
-    }, 60000);
-
-    return () => {
-      unsub();
-      clearInterval(timer);
-    };
-  }, []);
-
   useEffect(() => {
     setIsLoading(true);
     
@@ -111,15 +83,11 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
       setIsLoading(false);
     });
 
-    // 2. Logs Listener (load both selected date and its previous day's logs to support cross-day shifts)
+    // 2. Logs Listener
     const logsRef = collection(db, 'presence_logs');
-    const d = new Date(selectedDate);
-    d.setDate(d.getDate() - 1);
-    const yesterdayDateStr = format(d, 'yyyy-MM-dd');
-
     const qLogs = query(
       logsRef, 
-      where('date', 'in', [yesterdayDateStr, selectedDate])
+      where('date', '==', selectedDate)
     );
     const unsubLogs = onSnapshot(qLogs, (snap) => {
       const logList = snap.docs
@@ -376,7 +344,6 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
   };
 
   const filteredLogs = logs.filter(log => {
-    if (log.date !== selectedDate) return false;
     const emp = employees[log.employeeId];
     if (selectedDept !== 'All' && emp?.department !== selectedDept) return false;
     return true;
@@ -392,10 +359,6 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
 
   const inList = Object.keys(employees).filter(id => currentStates[id] === PresenceType.IN);
   const outList = Object.keys(employees).filter(id => currentStates[id] === PresenceType.OUT);
-
-  // Calculate live active and running completed man hours
-  const activeManHours = calculateActiveRealtimeHours(logs, manHoursNow);
-  const totalAccumManHours = completedManHours + activeManHours;
 
   return (
     <div className="min-h-screen bg-[#020617] text-slate-100 p-4 md:p-10 font-sans">
@@ -637,14 +600,9 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
                 </button>
               </div>
               
-              <div className="text-center mt-6 opacity-30 flex flex-col gap-1 items-center justify-center">
-                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-                  Official Systems Virtual • 2026
-                </p>
-                <p className="text-[8px] text-slate-500 font-bold uppercase tracking-[0.2em]">
-                  System by Pratama Raharja
-                </p>
-              </div>
+              <p className="text-center text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-6 opacity-30">
+                Official Systems Virtual • 2026
+              </p>
             </motion.div>
           </div>
         )}
@@ -826,13 +784,13 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
               </div>
               <div className="overflow-x-auto text-white">
                 {activeTab === 'LOGS' ? (
-                  <table className="w-full text-left min-w-[600px]">
+                  <table className="w-full text-left min-w-[400px]">
                     <thead className="bg-[#020617]/50 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] border-b border-slate-800">
                       <tr>
-                        <th className="px-5 md:px-8 py-5">Personnel</th>
-                        <th className="hidden sm:table-cell px-6 md:px-8 py-5">Department</th>
-                        <th className="hidden xs:table-cell px-5 md:px-8 py-5">Time</th>
-                        <th className="px-5 md:px-8 py-5">Status</th>
+                        <th className="px-3 sm:px-5 md:px-8 py-5">Personnel</th>
+                        <th className="hidden sm:table-cell px-3 sm:px-6 md:px-8 py-5">Department</th>
+                        <th className="hidden xs:table-cell px-3 sm:px-5 md:px-8 py-5">Time</th>
+                        <th className="px-3 sm:px-5 md:px-8 py-5">Status</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/50">
@@ -848,8 +806,8 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
                       ) : (
                         filteredLogs.map(log => (
                           <tr key={log.id} className="hover:bg-slate-800/30 transition-colors group text-sm md:text-base">
-                            <td className="px-5 md:px-8 py-5">
-                              <div className="font-bold text-slate-100 group-hover:text-blue-400 transition-colors capitalize text-xs md:text-base truncate max-w-[120px] md:max-w-none">
+                            <td className="px-3 sm:px-5 md:px-8 py-4 sm:py-5">
+                              <div className="font-bold text-slate-100 group-hover:text-blue-400 transition-colors capitalize text-xs md:text-base truncate max-w-[180px] md:max-w-none">
                                 {employees[log.employeeId]?.name || 'Unknown'}
                               </div>
                               <div className="text-[9px] text-slate-600 font-mono mt-0.5">NIK: {employees[log.employeeId]?.nik || log.employeeId}</div>
@@ -857,15 +815,15 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
                                 {log.timestamp ? format(log.timestamp, 'HH:mm') : '--:--'}
                               </div>
                             </td>
-                            <td className="hidden sm:table-cell px-6 md:px-8 py-5">
-                              <span className="text-xs text-slate-400 border border-slate-800 px-2.5 py-1 rounded-md bg-slate-900">
+                            <td className="hidden sm:table-cell px-3 sm:px-6 md:px-8 py-4 sm:py-5">
+                              <span className="text-[9px] sm:text-xs text-slate-400 border border-slate-800 px-2 sm:px-2.5 py-1 rounded-md bg-slate-900">
                                 {employees[log.employeeId]?.department || 'N/A'}
                               </span>
                             </td>
-                            <td className="hidden xs:table-cell px-5 md:px-8 py-5 font-mono text-slate-400 text-[10px] md:text-sm">
+                            <td className="hidden xs:table-cell px-3 sm:px-5 md:px-8 py-4 sm:py-5 font-mono text-slate-400 text-[9px] sm:text-[10px] md:text-sm">
                               {log.timestamp ? format(log.timestamp, 'HH:mm:ss') : '--:--'}
                             </td>
-                            <td className="px-5 md:px-8 py-5">
+                            <td className="px-3 sm:px-5 md:px-8 py-4 sm:py-5">
                               <span className={`inline-flex items-center gap-1 px-1.5 py-1 rounded-lg text-[8px] md:text-[10px] font-black uppercase tracking-widest border transition-all ${
                                 log.type === PresenceType.IN 
                                   ? 'bg-green-500/10 text-green-400 border-green-500/20' 
@@ -881,10 +839,10 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
                     </tbody>
                   </table>
                 ) : (
-                  <table className="w-full text-left min-w-[600px]">
+                  <table className="w-full text-left min-w-[400px]">
                     <thead className="bg-[#020617]/50 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] border-b border-slate-800">
                       <tr>
-                        <th className="px-5 md:px-8 py-5 w-10">
+                        <th className="px-3 sm:px-5 md:px-8 py-5 w-8 sm:w-10">
                           <div 
                             className="flex items-center justify-center cursor-pointer"
                             onClick={toggleSelectAll}
@@ -897,10 +855,10 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
                             />
                           </div>
                         </th>
-                        <th className="px-2 py-5 w-8 text-center">No.</th>
-                        <th className="px-5 md:px-8 py-5">Personnel</th>
-                        <th className="hidden sm:table-cell px-5 md:px-8 py-5">Status</th>
-                        <th className="px-5 md:px-8 py-5 text-right w-20 md:w-32">Action</th>
+                        <th className="px-2 py-5 w-6 sm:w-8 text-center text-[9px] sm:text-[10px]">No.</th>
+                        <th className="px-3 sm:px-5 md:px-8 py-5">Personnel</th>
+                        <th className="hidden sm:table-cell px-3 sm:px-5 md:px-8 py-5">Status</th>
+                        <th className="px-3 sm:px-5 md:px-8 py-5 text-right w-16 sm:w-20 md:w-32">Action</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/50">
@@ -913,7 +871,7 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
                       ) : (
                         filteredPersonnelList.map((emp, idx) => (
                           <tr key={emp.id} className={`hover:bg-slate-800/30 transition-colors group text-[11px] md:text-base ${selectedPersonnel.has(emp.id) ? 'bg-blue-600/5' : ''}`}>
-                            <td className="px-5 md:px-8 py-4">
+                            <td className="px-3 sm:px-5 md:px-8 py-3 sm:py-4">
                               <div 
                                 className="flex items-center justify-center cursor-pointer"
                                 onClick={() => toggleSelectPerson(emp.id)}
@@ -921,7 +879,7 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
                                 <input 
                                   type="checkbox" 
                                   readOnly
-                                  className="w-5 h-5 rounded border-slate-700 bg-slate-900 accent-blue-600 cursor-pointer"
+                                  className="w-4 h-4 sm:w-5 sm:h-5 rounded border-slate-700 bg-slate-900 accent-blue-600 cursor-pointer"
                                   checked={selectedPersonnel.has(emp.id)}
                                 />
                               </div>
@@ -929,13 +887,13 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
                             <td className="px-2 py-4 text-center text-[10px] text-slate-600 font-mono">
                               {idx + 1}
                             </td>
-                            <td className="px-5 md:px-8 py-4">
-                              <div className="font-bold text-slate-100 group-hover:text-blue-400 transition-colors truncate max-w-[140px] md:max-w-none">
+                            <td className="px-3 sm:px-5 md:px-8 py-3 sm:py-4">
+                              <div className="font-bold text-slate-100 group-hover:text-blue-400 transition-colors truncate max-w-[200px] md:max-w-none">
                                 {emp.name}
                               </div>
-                              <div className="flex items-center gap-2 mt-1">
-                                <span className="font-mono text-blue-500/60 text-[9px] md:text-xs">NIK: {emp.nik || emp.id}</span>
-                                <span className="text-[9px] text-slate-600 font-bold uppercase truncate max-w-[80px] md:max-w-none">
+                              <div className="flex flex-col xs:flex-row xs:items-center gap-0 xs:gap-2 mt-1">
+                                <span className="font-mono text-blue-500/60 text-[8px] sm:text-[9px] md:text-xs">NIK: {emp.nik || emp.id}</span>
+                                <span className="text-[8px] sm:text-[9px] text-slate-600 font-bold uppercase truncate max-w-[120px] md:max-w-none">
                                   {emp.department}
                                 </span>
                               </div>
@@ -950,38 +908,38 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
                                 </span>
                               </div>
                             </td>
-                            <td className="hidden sm:table-cell px-5 md:px-8 py-4">
-                              <span className={`inline-flex items-center gap-2 px-2 py-1 rounded text-[9px] md:text-[10px] font-bold ${
+                            <td className="hidden sm:table-cell px-3 sm:px-5 md:px-8 py-3 sm:py-4">
+                              <span className={`inline-flex items-center gap-1 sm:gap-2 px-1.5 sm:px-2 py-1 rounded text-[8px] sm:text-[9px] md:text-[10px] font-bold ${
                                 currentStates[emp.id] === PresenceType.IN ? 'text-green-400' : 'text-slate-500'
                               }`}>
-                                <div className={`w-1.5 h-1.5 rounded-full ${
+                                <div className={`w-1 sm:w-1.5 h-1 sm:h-1.5 rounded-full ${
                                   currentStates[emp.id] === PresenceType.IN ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' : 'bg-slate-700'
                                 }`}></div>
                                 {currentStates[emp.id] || 'OUT'}
                               </span>
                             </td>
-                            <td className="px-5 md:px-8 py-4 text-right">
-                              <div className="flex items-center justify-end gap-1 md:gap-2">
+                            <td className="px-3 sm:px-5 md:px-8 py-3 sm:py-4 text-right">
+                              <div className="flex items-center justify-end gap-0.5 sm:gap-1 md:gap-2">
                                 <button 
                                   onClick={() => setBarcodePerson(emp)}
-                                  className="p-2 bg-slate-800 hover:bg-indigo-600 text-slate-400 hover:text-white rounded-lg transition-all"
+                                  className="p-1.5 sm:p-2 bg-slate-800 hover:bg-indigo-600 text-slate-400 hover:text-white rounded-lg transition-all"
                                   title="Show Barcode"
                                 >
-                                  <BarcodeIcon size={12} />
+                                  <BarcodeIcon size={10} />
                                 </button>
                                 <button 
                                   onClick={() => setEditingPerson(emp)}
-                                  className="p-2 bg-slate-800 hover:bg-blue-600 text-slate-400 hover:text-white rounded-lg transition-all"
+                                  className="p-1.5 sm:p-2 bg-slate-800 hover:bg-blue-600 text-slate-400 hover:text-white rounded-lg transition-all"
                                   title="Edit"
                                 >
-                                  <Edit2 size={12} />
+                                  <Edit2 size={10} />
                                 </button>
                                 <button 
                                   onClick={() => handleDeletePerson(emp.id, emp.name)}
-                                  className="p-2 bg-slate-800 hover:bg-red-600 text-slate-400 hover:text-white rounded-lg transition-all"
+                                  className="p-1.5 sm:p-2 bg-slate-800 hover:bg-red-600 text-slate-400 hover:text-white rounded-lg transition-all"
                                   title="Delete"
                                 >
-                                  <Trash2 size={12} />
+                                  <Trash2 size={10} />
                                 </button>
                               </div>
                             </td>
@@ -1007,19 +965,6 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
                 <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">OUT</span>
                 <span className="text-2xl md:text-3xl font-mono text-red-400">{outList.length}</span>
               </div>
-            </div>
-
-            {/* Man Hours Card */}
-            <div className="bg-[#10b981]/10 border border-[#10b981]/30 p-5 rounded-2xl flex flex-col relative overflow-hidden group shadow-[0_0_30px_rgba(16,185,129,0.05)]">
-              <div className="absolute right-[-10px] top-[-10px] opacity-10">
-                <Clock size={60} className="text-[#10b981]" />
-              </div>
-              <span className="text-[#10b981] text-[10px] font-bold uppercase tracking-[0.2em] mb-2">MAN HOURS (Accumulative)</span>
-              <div className="flex items-baseline gap-1">
-                <span className="text-3xl font-mono font-black text-white">{totalAccumManHours.toFixed(1)}</span>
-                <span className="text-xs text-[#10b981] font-bold uppercase">HRS</span>
-              </div>
-              <span className="text-[8px] text-slate-500 uppercase mt-1">Total Jam Kerja Karyawan</span>
             </div>
 
             {/* List Panels */}
@@ -1103,12 +1048,9 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
                 </div>
               </div>
 
-              <div className="absolute bottom-4 text-center w-full flex flex-col gap-0.5 items-center justify-center opacity-50">
-                <p className="text-[6px] text-slate-300 font-bold uppercase tracking-widest">
+              <div className="absolute bottom-4 text-center w-full">
+                <p className="text-[6px] text-slate-300 font-bold uppercase tracking-widest opacity-50">
                   Official Systems Virtual • 2026
-                </p>
-                <p className="text-[5px] text-slate-400 font-bold uppercase tracking-[0.15em]">
-                  System by Pratama Raharja
                 </p>
               </div>
             </div>

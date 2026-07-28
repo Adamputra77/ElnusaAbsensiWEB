@@ -118,34 +118,6 @@ export async function getLatestLog(employeeId: string, date: string): Promise<Pr
   return null;
 }
 
-export async function getAbsoluteLatestLog(employeeId: string): Promise<PresenceLog | null> {
-  try {
-    const logsRef = collection(db, 'presence_logs');
-    const q = query(
-      logsRef,
-      where('employeeId', '==', employeeId)
-    );
-    const querySnapshot = await getDocs(q);
-    if (!querySnapshot.empty) {
-      const sorted = querySnapshot.docs
-        .map(d => ({ id: d.id, ...d.data() } as PresenceLog))
-        .sort((a, b) => {
-          const t1 = a.timestamp 
-            ? (typeof a.timestamp.toDate === 'function' ? a.timestamp.toDate().getTime() : new Date(a.timestamp).getTime()) 
-            : 0;
-          const t2 = b.timestamp 
-            ? (typeof b.timestamp.toDate === 'function' ? b.timestamp.toDate().getTime() : new Date(b.timestamp).getTime()) 
-            : 0;
-          return t2 - t1; // Descending (latest first)
-        });
-      return sorted[0];
-    }
-  } catch (err) {
-    handleFirestoreError(err, OperationType.GET, 'presence_logs');
-  }
-  return null;
-}
-
 export async function processScan(nik: string): Promise<{ success: boolean; message: string; employee?: Employee; type?: PresenceType }> {
   try {
     const employee = await getEmployeeByNik(nik);
@@ -154,12 +126,11 @@ export async function processScan(nik: string): Promise<{ success: boolean; mess
     }
 
     const todayStr = format(new Date(), 'yyyy-MM-dd');
-    const latestLog = await getAbsoluteLatestLog(employee.id);
+    const latestLog = await getLatestLog(employee.id, todayStr);
 
     // Guard: Prevent double-scans within a 1-minute window
     if (latestLog && latestLog.timestamp) {
-      const lastSeconds = (latestLog.timestamp as any).seconds || Math.floor(new Date(latestLog.timestamp).getTime() / 1000);
-      const lastTime = lastSeconds * 1000;
+      const lastTime = (latestLog.timestamp as any).seconds * 1000;
       const now = Date.now();
       const diffMinutes = (now - lastTime) / (1000 * 60);
       
@@ -193,12 +164,11 @@ export async function processScan(nik: string): Promise<{ success: boolean; mess
     const statsRef = doc(db, 'stats', todayStr);
     const isVisitor = employee.isVisitor === true;
     
-    const statsUpdate: Record<string, any> = {};
+    const statsUpdate: any = {};
     if (nextType === PresenceType.IN) {
       statsUpdate.in = increment(1);
       statsUpdate.pob = increment(1);
       if (isVisitor) {
-        // We use totalVisits to represent entries, and visitorIn to represent total check-ins
         statsUpdate.totalVisits = increment(1);
         statsUpdate.visitorIn = increment(1);
       }
@@ -212,26 +182,6 @@ export async function processScan(nik: string): Promise<{ success: boolean; mess
 
     // Ensure document exists and update counters atomically
     batch.set(statsRef, statsUpdate, { merge: true });
-
-    // 3. Accumulate Running Total Man Hours to Firestore under stats/warehouse
-    if (nextType === PresenceType.OUT && latestLog && latestLog.timestamp) {
-      const checkInTime = typeof latestLog.timestamp.toDate === 'function'
-        ? latestLog.timestamp.toDate()
-        : new Date(latestLog.timestamp);
-      
-      const checkOutTime = new Date();
-      const durationMs = checkOutTime.getTime() - checkInTime.getTime();
-      const durationHours = durationMs / (1000 * 60 * 60);
-
-      // Validate duration: positive and less than 24 hours (safeguard against legacy anomalous open check-ins)
-      if (durationHours > 0 && durationHours < 24) {
-        const warehouseStatsRef = doc(db, 'stats', 'warehouse');
-        batch.set(warehouseStatsRef, {
-          completedManHours: increment(durationHours),
-          updatedAt: serverTimestamp()
-        }, { merge: true });
-      }
-    }
 
     await batch.commit();
 
@@ -312,7 +262,7 @@ export async function getDailyStats(date: string) {
       in: inCount,
       out: outCount,
       pob,
-      totalVisits: visitorInIds.size, // Unique IDs who came IN
+      totalVisits: visitorInIds.size,
       visitorIn: vInCount,
       visitorOut: vOutCount
     };

@@ -46,16 +46,6 @@
         "totalVisits": { "type": "number" }
       },
       "required": ["in", "out", "pob", "totalVisits"]
-    },
-    "WarehouseStats": {
-      "title": "Warehouse Stats",
-      "description": "Real-time global running total stats of the warehouse",
-      "type": "object",
-      "properties": {
-        "completedManHours": { "type": "number", "description": "Running total of completed man hours" },
-        "updatedAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["completedManHours"]
     }
   },
   "firestore": {
@@ -70,10 +60,6 @@
     "/system_config/{configId}": {
       "schema": "SystemConfig",
       "description": "Global configuration document"
-    },
-    "/stats/warehouse": {
-      "schema": "WarehouseStats",
-      "description": "Real-time global running total of man hours"
     },
     "/stats/{date}": {
       "schema": "DailyStats",

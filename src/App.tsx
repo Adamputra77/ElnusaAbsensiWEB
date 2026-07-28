@@ -2,10 +2,9 @@ import { useState, useEffect } from 'react';
 import ScanInterface from './components/ScanInterface';
 import AdminDashboard from './components/AdminDashboard';
 import { LoginSelection } from './components/LoginSelection';
-import WarehouseDashboard from './components/WarehouseDashboard';
 import Barcode from 'react-barcode';
 import QRCode from 'react-qr-code';
-import { Settings2, ScanLine, LogOut, User, Clock, Bell, History, ArrowRight, Loader2, Calendar, Smartphone, QrCode, AlertTriangle, Hammer, LayoutDashboard } from 'lucide-react';
+import { Settings2, ScanLine, LogOut, User, Clock, Bell, History, ArrowRight, Loader2, Calendar, Smartphone, QrCode, AlertTriangle, Hammer } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Employee, PresenceLog, UserRole } from './types';
 import { collection, query, where, orderBy, getDocs, Timestamp, onSnapshot, doc } from 'firebase/firestore';
@@ -22,20 +21,6 @@ export default function App() {
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
   const [view, setView] = useState<ViewMode>('SCAN');
   const [maintenance, setMaintenance] = useState<{ active: boolean; message: string }>({ active: false, message: '' });
-  const [path, setPath] = useState(window.location.pathname);
-
-  useEffect(() => {
-    const handlePopState = () => {
-      setPath(window.location.pathname);
-    };
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
-
-  const navigateTo = (newPath: string) => {
-    window.history.pushState({}, '', newPath);
-    setPath(newPath);
-  };
 
   useEffect(() => {
     // Listen to maintenance mode
@@ -108,10 +93,6 @@ export default function App() {
     }
   };
 
-  if (path === '/dashboard') {
-    return <WarehouseDashboard onBack={() => navigateTo('/')} />;
-  }
-
   // Define the main content based on role
   let mainContent;
   if (!userRole) {
@@ -137,7 +118,7 @@ export default function App() {
                   <span className="text-slate-500 uppercase tracking-widest text-[8px] md:text-[10px] font-black border border-slate-800 px-2 py-0.5 md:px-2.5 md:py-1 rounded-lg shrink-0">
                     {authEmployee.id}
                   </span>
-                  <span className="text-purple-400 uppercase tracking-widest text-[8px] md:text-[10px] font-black bg-purple-400/10 border border-purple-400/20 px-2 py-0.5 md:px-2.5 md:py-1 rounded-lg shrink-0 truncate max-w-[120px] md:max-w-none">
+                  <span className="text-purple-400 uppercase tracking-widest text-[8px] md:text-[10px] font-black bg-purple-400/10 border border-purple-400/20 px-2 py-0.5 md:px-2.5 md:py-1 rounded-lg shrink-0 truncate max-w-[180px] md:max-w-none">
                     {authEmployee.department}
                   </span>
                 </div>
@@ -331,19 +312,6 @@ export default function App() {
 
           {(userRole === UserRole.ADMIN || userRole === UserRole.SECURITY) && (
             <button
-              onClick={() => navigateTo('/dashboard')}
-              className="p-3 md:p-5 bg-slate-900/90 backdrop-blur-xl border border-slate-700 rounded-2xl md:rounded-[1.5rem] shadow-2xl hover:scale-110 hover:border-cyan-500/50 transition-all text-cyan-400 hover:text-cyan-300 group active:scale-95 relative flex items-center justify-center shrink-0"
-              title="POB Dashboard"
-            >
-              <LayoutDashboard size={20} className="md:size-6" />
-              <div className="absolute right-full mr-3 top-1/2 -translate-y-1/2 py-2 px-4 bg-cyan-600 text-white text-[10px] font-black rounded-xl opacity-0 group-hover:opacity-100 transition-all pointer-events-none uppercase tracking-widest whitespace-nowrap shadow-xl hidden md:block">
-                POB Dashboard Monitoring
-              </div>
-            </button>
-          )}
-
-          {(userRole === UserRole.ADMIN || userRole === UserRole.SECURITY) && (
-            <button
               onClick={() => setView(view === 'SCAN' ? 'ADMIN' : 'SCAN')}
               className="p-3 md:p-5 bg-slate-900/90 backdrop-blur-xl border border-slate-700 rounded-2xl md:rounded-[1.5rem] shadow-2xl hover:scale-110 hover:border-blue-500/50 transition-all text-slate-400 hover:text-blue-400 group active:scale-95 relative flex items-center justify-center shrink-0"
               title={view === 'SCAN' ? 'Go to Dashboard' : 'Go to Scan Interface'}
@@ -371,12 +339,9 @@ export default function App() {
         </main>
 
         {/* Branding Footer */}
-        <footer className="fixed bottom-4 left-4 pointer-events-none opacity-30 select-none flex flex-col gap-1">
+        <footer className="fixed bottom-4 left-4 pointer-events-none opacity-30 select-none">
           <div className="text-[9px] font-black uppercase tracking-[0.3em] text-slate-500">
             Powered by Warehouse ELNUSA BSD
-          </div>
-          <div className="text-[8px] font-black uppercase tracking-[0.25em] text-slate-600">
-            System by Pratama Raharja
           </div>
         </footer>
       </>

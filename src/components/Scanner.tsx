@@ -13,10 +13,18 @@ export default function Scanner({ onScan }: ScannerProps) {
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
   const scannerId = "qr-reader-internal";
 
-  useEffect(() => {
+  const calcBoxSize = () => {
     const isMobile = window.innerWidth < 768;
-    const computedSize = isMobile ? Math.min(window.innerWidth * 0.7, 220) : 250;
-    setBoxSize(computedSize);
+    return isMobile ? Math.min(window.innerWidth * 0.7, 220) : 250;
+  };
+
+  useEffect(() => {
+    setBoxSize(calcBoxSize());
+
+    const handleResize = () => {
+      setBoxSize(calcBoxSize());
+    };
+    window.addEventListener('resize', handleResize);
 
     html5QrCodeRef.current = new Html5Qrcode(scannerId);
 
@@ -56,6 +64,7 @@ export default function Scanner({ onScan }: ScannerProps) {
     startCamera();
 
     return () => {
+      window.removeEventListener('resize', handleResize);
       if (html5QrCodeRef.current?.isScanning) {
         html5QrCodeRef.current.stop().catch(e => console.error("Stop error", e));
       }

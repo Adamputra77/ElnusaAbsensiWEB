@@ -9,6 +9,8 @@
   --color-brand-surface: #0f172a;
   --color-brand-accent: #2563eb;
   --color-brand-border: #1e293b;
+
+  --breakpoint-xs: 480px;
 }
 
 @layer base {

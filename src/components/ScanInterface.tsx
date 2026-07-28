@@ -1,22 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Scan, Users, LogIn, LogOut, Search, AlertCircle, Clock } from 'lucide-react';
+import { Scan, Users, LogIn, LogOut, Search, AlertCircle } from 'lucide-react';
 import { processScan, getDailyStats } from '../lib/attendance';
-import { DailyStats, PresenceType, Employee, PresenceLog } from '../types';
-import { format, subDays } from 'date-fns';
+import { DailyStats, PresenceType, Employee } from '../types';
+import { format } from 'date-fns';
 import Scanner from './Scanner';
-import { collection, getDocs, onSnapshot, doc, query, where } from 'firebase/firestore';
+import { collection, getDocs, onSnapshot, doc, query } from 'firebase/firestore';
 import { db } from '../firebase';
 import { handleFirestoreError, OperationType } from '../lib/firestoreUtils';
-import { calculateActiveRealtimeHours } from '../lib/manHours';
 
 export default function ScanInterface() {
   const [nikInput, setNikInput] = useState('');
   const [stats, setStats] = useState<DailyStats>({ in: 0, out: 0, pob: 0, totalVisits: 0, visitorIn: 0, visitorOut: 0 });
-  const [employees, setEmployees] = useState<Record<string, Employee>>({});
-  const [logs, setLogs] = useState<PresenceLog[]>([]);
-  const [completedManHours, setCompletedManHours] = useState<number>(0);
-  const [manHoursNow, setManHoursNow] = useState(new Date());
   const [hasEmployees, setHasEmployees] = useState<boolean | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' | null; employee?: Employee; scanType?: PresenceType } | null>(null);
@@ -30,51 +25,14 @@ export default function ScanInterface() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    checkEmployees();
+    
     // Timer for display
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
 
     return () => {
       clearInterval(timer);
     };
-  }, []);
-
-  // Real-time listener for employees list to map details offline & check hasEmployees state
-  useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'employees'), (snap) => {
-      const empMap: Record<string, Employee> = {};
-      snap.forEach(d => {
-        empMap[d.id] = { id: d.id, ...d.data() } as Employee;
-      });
-      setEmployees(empMap);
-      setHasEmployees(snap.size > 0);
-    }, (error) => {
-      console.error("Failed to sync employees list:", error);
-    });
-
-    return () => unsub();
-  }, []);
-
-  // Real-time listener for yesterday and today's logs to support night shifts and real-time ticking Man Hours
-  useEffect(() => {
-    const todayStr = format(new Date(), 'yyyy-MM-dd');
-    const yesterdayStr = format(subDays(new Date(), 1), 'yyyy-MM-dd');
-    
-    const q = query(
-      collection(db, 'presence_logs'),
-      where('date', 'in', [yesterdayStr, todayStr])
-    );
-
-    const unsubscribe = onSnapshot(q, (snap) => {
-      const logsList = snap.docs.map(d => ({
-        id: d.id,
-        ...d.data()
-      } as PresenceLog));
-      setLogs(logsList);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, 'presence_logs');
-    });
-
-    return () => unsubscribe();
   }, []);
 
   // Dedicated real-time stats listener (separated for clarity)
@@ -90,27 +48,6 @@ export default function ScanInterface() {
       handleFirestoreError(error, OperationType.GET, `stats/${today}`);
     });
 
-    return () => unsubscribe();
-  }, []);
-
-  // Throttled timer (every 1 minute) for realtime active man hours computation
-  useEffect(() => {
-    const timer = setInterval(() => setManHoursNow(new Date()), 60000);
-    return () => clearInterval(timer);
-  }, []);
-
-  // Listen in real-time to running cumulative completed man hours
-  useEffect(() => {
-    const unsubscribe = onSnapshot(doc(db, 'stats', 'warehouse'), (snap) => {
-      if (snap.exists()) {
-        const data = snap.data();
-        setCompletedManHours(data.completedManHours || 0);
-      } else {
-        setCompletedManHours(0);
-      }
-    }, (error) => {
-      console.error("Failed to sync warehouse completed man hours:", error);
-    });
     return () => unsubscribe();
   }, []);
 
@@ -227,12 +164,6 @@ export default function ScanInterface() {
       }
     }
   };
-
-  const todayStr = format(currentTime, 'yyyy-MM-dd');
-  // Dynamic live active man hours for checked-in users (employees + visitors)
-  const activeManHours = calculateActiveRealtimeHours(logs, manHoursNow);
-  // Total dashboard accumulative hours = Completed (Persisted in DB) + Active (Live)
-  const totalAccumManHours = completedManHours + activeManHours;
 
   return (
     <div className="flex flex-col min-h-screen bg-[#020617] text-slate-100 font-sans overflow-hidden">
@@ -388,59 +319,49 @@ export default function ScanInterface() {
       </main>
 
       {/* Summary Stats Footer Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-8 p-4 md:p-12 bg-[#0f172a]/60 border-t border-slate-800 backdrop-blur-2xl">
-        <div className="bg-slate-900/80 border-2 border-slate-800 p-6 md:p-10 rounded-2xl md:rounded-[2.5rem] flex flex-col relative overflow-hidden group hover:border-blue-500/30 transition-all">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 md:gap-8 p-2 sm:p-4 md:p-12 bg-[#0f172a]/60 border-t border-slate-800 backdrop-blur-2xl">
+        <div className="bg-slate-900/80 border-2 border-slate-800 p-3 sm:p-6 md:p-10 rounded-xl sm:rounded-2xl md:rounded-[2.5rem] flex flex-col relative overflow-hidden group hover:border-blue-500/30 transition-all">
           <div className="absolute right-[-10px] top-[-10px] opacity-5 group-hover:opacity-10 transition-opacity">
             <LogIn size={80} className="text-blue-500" />
           </div>
-          <span className="text-slate-500 text-lg md:text-2xl font-black uppercase tracking-[0.2em] mb-3">Masuk</span>
-          <span className="text-5xl md:text-8xl font-mono text-blue-400 font-black tracking-tighter transition-transform group-hover:scale-105 origin-left tracking-[-0.05em]">{stats.in}</span>
+          <span className="text-slate-500 text-sm sm:text-lg md:text-2xl font-black uppercase tracking-[0.2em] mb-1 sm:mb-3">Masuk</span>
+          <span className="text-3xl sm:text-5xl md:text-8xl font-mono text-blue-400 font-black tracking-tighter transition-transform group-hover:scale-105 origin-left tracking-[-0.05em]">{stats.in}</span>
         </div>
 
-        <div className="bg-slate-900/80 border-2 border-slate-800 p-6 md:p-10 rounded-2xl md:rounded-[2.5rem] flex flex-col relative overflow-hidden group hover:border-orange-500/30 transition-all">
+        <div className="bg-slate-900/80 border-2 border-slate-800 p-3 sm:p-6 md:p-10 rounded-xl sm:rounded-2xl md:rounded-[2.5rem] flex flex-col relative overflow-hidden group hover:border-orange-500/30 transition-all">
           <div className="absolute right-[-10px] top-[-10px] opacity-5 group-hover:opacity-10 transition-opacity">
             <LogOut size={80} className="text-orange-500" />
           </div>
-          <span className="text-slate-500 text-lg md:text-2xl font-black uppercase tracking-[0.2em] mb-3">Keluar</span>
-          <span className="text-5xl md:text-8xl font-mono text-slate-300 font-black tracking-tighter transition-transform group-hover:scale-105 origin-left tracking-[-0.05em]">{stats.out}</span>
+          <span className="text-slate-500 text-sm sm:text-lg md:text-2xl font-black uppercase tracking-[0.2em] mb-1 sm:mb-3">Keluar</span>
+          <span className="text-3xl sm:text-5xl md:text-8xl font-mono text-slate-300 font-black tracking-tighter transition-transform group-hover:scale-105 origin-left tracking-[-0.05em]">{stats.out}</span>
         </div>
 
-        <div className="bg-blue-600/10 border-2 border-blue-500/40 p-6 md:p-10 rounded-2xl md:rounded-[2.5rem] flex flex-col relative overflow-hidden group hover:bg-blue-600/20 transition-all shadow-[0_0_50px_rgba(37,99,235,0.1)]">
+        <div className="bg-blue-600/10 border-2 border-blue-500/40 p-3 sm:p-6 md:p-10 rounded-xl sm:rounded-2xl md:rounded-[2.5rem] flex flex-col relative overflow-hidden group hover:bg-blue-600/20 transition-all shadow-[0_0_50px_rgba(37,99,235,0.1)]">
           <div className="absolute right-[-10px] top-[-10px] opacity-10 group-hover:opacity-20 transition-opacity">
             <Users size={80} className="text-blue-500" />
           </div>
-          <span className="text-blue-400 text-lg md:text-2xl font-black uppercase tracking-[0.2em] mb-3">POB <span className="text-xs md:text-sm text-blue-500/50 grow-0 ml-2">(Person On Board)</span></span>
-          <span className="text-5xl md:text-8xl font-mono text-white font-black tracking-tighter transition-transform group-hover:scale-105 origin-left tracking-[-0.05em]">{stats.pob}</span>
+          <span className="text-blue-400 text-sm sm:text-lg md:text-2xl font-black uppercase tracking-[0.2em] mb-1 sm:mb-3">POB <span className="text-[6px] sm:text-xs md:text-sm text-blue-500/50 grow-0 ml-1 sm:ml-2">(POB)</span></span>
+          <span className="text-3xl sm:text-5xl md:text-8xl font-mono text-white font-black tracking-tighter transition-transform group-hover:scale-105 origin-left tracking-[-0.05em]">{stats.pob}</span>
         </div>
 
-        <div className="bg-emerald-600/10 border-2 border-emerald-500/40 p-6 md:p-10 rounded-2xl md:rounded-[2.5rem] flex flex-col relative overflow-hidden group hover:bg-emerald-600/20 transition-all shadow-[0_0_50px_rgba(16,185,129,0.1)]">
-          <div className="absolute right-[-10px] top-[-10px] opacity-10 group-hover:opacity-20 transition-opacity">
-            <Clock size={80} className="text-emerald-500" />
-          </div>
-          <span className="text-emerald-400 text-lg md:text-2xl font-black uppercase tracking-[0.2em] mb-3">MAN HOURS <span className="text-xs md:text-sm text-emerald-500/50 grow-0 ml-2">(Accumulative)</span></span>
-          <span className="text-5xl md:text-8xl font-mono text-white font-black tracking-tighter transition-transform group-hover:scale-105 origin-left tracking-[-0.05em] flex items-baseline gap-1">
-            {totalAccumManHours.toFixed(1)} <span className="text-lg md:text-3xl text-emerald-400 font-bold uppercase">HRS</span>
-          </span>
-        </div>
-
-        <div className="bg-slate-900/90 border-2 border-slate-800 p-6 md:p-10 rounded-2xl md:rounded-[2.5rem] flex flex-col relative overflow-hidden group hover:border-slate-600 transition-all">
+        <div className="bg-slate-900/90 border-2 border-slate-800 p-3 sm:p-6 md:p-10 rounded-xl sm:rounded-2xl md:rounded-[2.5rem] flex flex-col relative overflow-hidden group hover:border-slate-600 transition-all">
           <div className="absolute right-[-10px] top-[-10px] opacity-5 group-hover:opacity-10 transition-opacity">
             <Scan size={80} className="text-slate-500" />
           </div>
-          <span className="text-slate-500 text-lg md:text-2xl font-black uppercase tracking-[0.2em] mb-1">Visitor</span>
-          <div className="flex items-baseline gap-4">
-            <span className="text-5xl md:text-8xl font-mono text-white/90 font-black tracking-tighter transition-transform group-hover:scale-105 origin-left tracking-[-0.05em]">
-              {Math.max(0, (stats.visitorIn || 0) - (stats.visitorOut || 0))}
+          <span className="text-slate-500 text-sm sm:text-lg md:text-2xl font-black uppercase tracking-[0.2em] mb-1">Visitor</span>
+          <div className="flex items-baseline gap-2 sm:gap-4">
+            <span className="text-3xl sm:text-5xl md:text-8xl font-mono text-white/90 font-black tracking-tighter transition-transform group-hover:scale-105 origin-left tracking-[-0.05em]">
+              {(stats.visitorIn || 0) - (stats.visitorOut || 0)}
             </span>
             <div className="flex flex-col">
-              <span className="text-[10px] md:text-xs font-bold text-blue-500 uppercase leading-none">Inside</span>
-              <div className="flex items-center gap-2 mt-1">
-                <span className="text-[8px] md:text-[10px] font-bold text-green-500/80 uppercase">In: {stats.visitorIn || 0}</span>
-                <span className="text-[8px] md:text-[10px] font-bold text-red-500/80 uppercase">Out: {stats.visitorOut || 0}</span>
+              <span className="text-[8px] sm:text-[10px] md:text-xs font-bold text-blue-500 uppercase leading-none">Inside</span>
+              <div className="flex items-center gap-1 sm:gap-2 mt-0.5 sm:mt-1">
+                <span className="text-[7px] sm:text-[8px] md:text-[10px] font-bold text-green-500/80 uppercase">In: {stats.visitorIn || 0}</span>
+                <span className="text-[7px] sm:text-[8px] md:text-[10px] font-bold text-red-500/80 uppercase">Out: {stats.visitorOut || 0}</span>
               </div>
             </div>
           </div>
-          <p className="text-[10px] text-slate-600 uppercase tracking-widest mt-2">{stats.totalVisits || 0} Total Unique Today</p>
+          <p className="text-[8px] sm:text-[10px] text-slate-600 uppercase tracking-widest mt-1 sm:mt-2">{stats.totalVisits} Total Today</p>
         </div>
       </div>
 
@@ -451,7 +372,7 @@ export default function ScanInterface() {
           <span>Status: ONLINE</span>
         </div>
         <div className="text-center md:text-right">
-          © 2026 Warehouse ELNUSA BSD • Systems Virtual • System by Pratama Raharja
+          © 2026 Warehouse ELNUSA BSD • Systems Virtual
         </div>
       </footer>
     </div>

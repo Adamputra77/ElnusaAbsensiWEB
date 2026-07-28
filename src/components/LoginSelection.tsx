@@ -105,19 +105,19 @@ export const LoginSelection: React.FC<LoginSelectionProps> = ({ onSelectRole }) 
           </motion.p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-8">
           {/* Card Admin */}
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            className="bg-slate-900/40 border border-slate-800 p-6 md:p-8 rounded-[2rem] md:rounded-[3rem] backdrop-blur-2xl hover:border-indigo-500/50 transition-all group relative overflow-hidden min-h-[360px] md:min-h-[420px] flex flex-col"
+            className="bg-slate-900/40 border border-slate-800 p-6 md:p-8 rounded-[2rem] md:rounded-[3rem] backdrop-blur-2xl hover:border-indigo-500/50 transition-all group relative overflow-hidden min-h-[300px] sm:min-h-[360px] md:min-h-[420px] flex flex-col"
           >
             <div className="w-12 h-12 md:w-16 md:h-16 bg-indigo-600/10 rounded-2xl flex items-center justify-center mb-6 md:mb-8 text-indigo-500 group-hover:scale-110 transition-transform duration-500">
               <Settings size={28} />
             </div>
             <h2 className="text-xl md:text-2xl font-black text-white mb-3 md:mb-4 uppercase tracking-tight">System Admin</h2>
-            <p className="text-slate-400 text-[10px] md:text-xs mb-8 md:mb-10 flex-1 font-medium leading-relaxed">
+            <p className="text-slate-400 text-[10px] md:text-xs mb-6 sm:mb-8 md:mb-10 flex-1 font-medium leading-relaxed">
               Manajemen data karyawan, monitoring log historis, perizinan, dan pemeliharaan sistem utama.
             </p>
             <button 
@@ -134,13 +134,13 @@ export const LoginSelection: React.FC<LoginSelectionProps> = ({ onSelectRole }) 
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
-            className="bg-slate-900/40 border border-slate-800 p-6 md:p-8 rounded-[2rem] md:rounded-[3rem] backdrop-blur-2xl hover:border-blue-500/50 transition-all group relative overflow-hidden min-h-[360px] md:min-h-[420px] flex flex-col"
+            className="bg-slate-900/40 border border-slate-800 p-6 md:p-8 rounded-[2rem] md:rounded-[3rem] backdrop-blur-2xl hover:border-blue-500/50 transition-all group relative overflow-hidden min-h-[300px] sm:min-h-[360px] md:min-h-[420px] flex flex-col"
           >
             <div className="w-12 h-12 md:w-16 md:h-16 bg-blue-600/10 rounded-2xl flex items-center justify-center mb-6 md:mb-8 text-blue-500 group-hover:scale-110 transition-transform duration-500">
               <ShieldAlert size={28} />
             </div>
             <h2 className="text-xl md:text-2xl font-black text-white mb-3 md:mb-4 uppercase tracking-tight">Security Officer</h2>
-            <p className="text-slate-400 text-[10px] md:text-xs mb-8 md:mb-10 flex-1 font-medium leading-relaxed">
+            <p className="text-slate-400 text-[10px] md:text-xs mb-6 sm:mb-8 md:mb-10 flex-1 font-medium leading-relaxed">
               Operasional gate harian, scanning barcode/QR karyawan & tamu, serta monitoring POB real-time.
             </p>
             <button 
@@ -157,13 +157,13 @@ export const LoginSelection: React.FC<LoginSelectionProps> = ({ onSelectRole }) 
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.5 }}
-            className="bg-slate-900/40 border border-slate-800 p-6 md:p-8 rounded-[2rem] md:rounded-[3rem] backdrop-blur-2xl hover:border-purple-500/50 transition-all group relative overflow-hidden min-h-[360px] md:min-h-[420px] flex flex-col"
+            className="bg-slate-900/40 border border-slate-800 p-6 md:p-8 rounded-[2rem] md:rounded-[3rem] backdrop-blur-2xl hover:border-purple-500/50 transition-all group relative overflow-hidden min-h-[300px] sm:min-h-[360px] md:min-h-[420px] flex flex-col"
           >
             <div className="w-12 h-12 md:w-16 md:h-16 bg-purple-600/10 rounded-2xl flex items-center justify-center mb-6 md:mb-8 text-purple-500 group-hover:scale-110 transition-transform duration-500">
               <User size={28} />
             </div>
             <h2 className="text-xl md:text-2xl font-black text-white mb-3 md:mb-4 uppercase tracking-tight">Employee Portal</h2>
-            <p className="text-slate-400 text-[10px] md:text-xs mb-8 md:mb-10 flex-1 font-medium leading-relaxed">
+            <p className="text-slate-400 text-[10px] md:text-xs mb-6 sm:mb-8 md:mb-10 flex-1 font-medium leading-relaxed">
               Akses kode identitas digital (QR/Barcode), riwayat kehadiran pribadi, dan informasi operasional.
             </p>
             <button 
@@ -269,11 +269,6 @@ export const LoginSelection: React.FC<LoginSelectionProps> = ({ onSelectRole }) 
           </div>
         )}
       </AnimatePresence>
-
-      {/* Signature in the bottom-left corner */}
-      <div className="absolute bottom-6 left-6 text-[9px] font-black uppercase tracking-[0.3em] text-slate-500/50 pointer-events-none select-none z-20">
-        System by Pratama Raharja
-      </div>
     </div>
   );
 };
