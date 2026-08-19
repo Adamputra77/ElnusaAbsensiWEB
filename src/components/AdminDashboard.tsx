@@ -43,6 +43,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { SEED_EMPLOYEES } from '../seedData';
+import { syncEmployees, bumpEmployeeVersion } from '../lib/employeeCache';
 
 import { UserRole } from '../types';
 
@@ -70,18 +71,16 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
   useEffect(() => {
     setIsLoading(true);
     
-    // 1. Employee Listener
-    const unsubEmployees = onSnapshot(collection(db, 'employees'), (snap) => {
-      const empData: Record<string, Employee> = {};
-      snap.forEach(d => {
-        empData[d.id] = { id: d.id, ...d.data() } as Employee;
+    // 1. Employees (cached client-side; meta version check = 1 read/session)
+    syncEmployees()
+      .then(empData => {
+        setEmployees(empData);
+        setIsLoading(false);
+      })
+      .catch((err) => {
+        handleFirestoreError(err, OperationType.GET, 'employees');
+        setIsLoading(false);
       });
-      setEmployees(empData);
-      setIsLoading(false);
-    }, (err) => {
-      handleFirestoreError(err, OperationType.GET, 'employees');
-      setIsLoading(false);
-    });
 
     // 2. Logs Listener
     const logsRef = collection(db, 'presence_logs');
@@ -103,7 +102,6 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
     });
 
     return () => {
-      unsubEmployees();
       unsubLogs();
     };
   }, [selectedDate, selectedDept]);
@@ -127,6 +125,15 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
       alert(`${showAddModal === 'VISITOR' ? 'Visitor' : 'Employee'} berhasil ditambahkan!`);
       setShowAddModal(null);
       setNewPerson({ id: '', name: '', department: '', nik: '' });
+      const newEmp = {
+        id: newPerson.id,
+        name: newPerson.name,
+        department: newPerson.department,
+        nik: newPerson.nik || newPerson.id,
+        isVisitor: showAddModal === 'VISITOR'
+      };
+      setEmployees(prev => ({ ...prev, [newEmp.id]: newEmp }));
+      await bumpEmployeeVersion();
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, 'employees');
       alert("Gagal menambahkan data: " + (err instanceof Error ? err.message : String(err)));
@@ -146,6 +153,8 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
       
       alert(`Data berhasil diperbarui!`);
       setEditingPerson(null);
+      setEmployees(prev => ({ ...prev, [editingPerson.id]: editingPerson }));
+      await bumpEmployeeVersion();
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, 'employees');
       alert("Gagal memperbarui data: " + (err instanceof Error ? err.message : String(err)));
@@ -161,6 +170,12 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
       const docRef = doc(db, 'employees', id);
       await deleteDoc(docRef);
       alert(`Data "${name}" berhasil dihapus.`);
+      setEmployees(prev => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      await bumpEmployeeVersion();
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, 'employees');
       alert("Gagal menghapus data: " + (err instanceof Error ? err.message : String(err)));
@@ -276,6 +291,8 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
         
         await batch.commit();
         console.log("Seeding committed successfully.");
+        await bumpEmployeeVersion();
+        setEmployees(await syncEmployees());
         setSeedStep('success');
         setTimeout(() => setSeedStep('idle'), 3000);
       } catch (err) {

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Scan, Users, LogIn, LogOut, Search, AlertCircle, Clock } from 'lucide-react';
-import { processScan, getDailyStats } from '../lib/attendance';
+import { processScan } from '../lib/attendance';
 import { DailyStats, PresenceType, Employee, PresenceLog } from '../types';
 import { format, subDays } from 'date-fns';
 import Scanner from './Scanner';
@@ -9,6 +9,7 @@ import { collection, onSnapshot, doc, query, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import { handleFirestoreError, OperationType } from '../lib/firestoreUtils';
 import { calculateActiveRealtimeHours } from '../lib/manHours';
+import { syncEmployees } from '../lib/employeeCache';
 
 export default function ScanInterface() {
   const [nikInput, setNikInput] = useState('');
@@ -38,20 +39,20 @@ export default function ScanInterface() {
     };
   }, []);
 
-  // Real-time listener for employees list to map details offline & check hasEmployees state
+  // Sync employees once per session (cached client-side to save Firestore quota)
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'employees'), (snap) => {
-      const empMap: Record<string, Employee> = {};
-      snap.forEach(d => {
-        empMap[d.id] = { id: d.id, ...d.data() } as Employee;
+    let active = true;
+    syncEmployees()
+      .then(map => {
+        if (!active) return;
+        setEmployees(map);
+        setHasEmployees(Object.keys(map).length > 0);
+      })
+      .catch(() => {
+        if (!active) return;
+        setHasEmployees(null);
       });
-      setEmployees(empMap);
-      setHasEmployees(snap.size > 0);
-    }, (error) => {
-      console.error("Failed to sync employees list:", error);
-    });
-
-    return () => unsub();
+    return () => { active = false; };
   }, []);
 
   // Real-time listener for yesterday and today's logs to support night shifts and real-time ticking Man Hours
@@ -124,16 +125,6 @@ export default function ScanInterface() {
     return () => window.removeEventListener('click', handleFocus);
   }, [showCamera]);
 
-  const fetchStats = async () => {
-    try {
-      const today = format(new Date(), 'yyyy-MM-dd');
-      const s = await getDailyStats(today);
-      setStats(s);
-    } catch (err) {
-      console.error("Failed to fetch stats:", err);
-    }
-  };
-
   const handleScan = async (nik: string) => {
     // 1. Immediate capture and clear to prevent race conditions
     const cleanNik = nik.replace(/[\u0000-\u001F\u007F-\u009F]/g, '').trim();
@@ -171,7 +162,6 @@ export default function ScanInterface() {
           employee: result.employee,
           scanType: result.type
         });
-        fetchStats();
       } else {
         // Show check if it was just a cooldown from server
         setNotification({ 

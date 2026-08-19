@@ -4,6 +4,7 @@ import { ShieldCheck, User, ArrowRight, Lock, KeyRound, Loader2, Settings, Shiel
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Employee, UserRole } from '../types';
+import { getCachedEmployee, syncEmployees } from '../lib/employeeCache';
 
 interface LoginSelectionProps {
   onSelectRole: (role: UserRole, employeeData?: Employee) => void;
@@ -48,6 +49,13 @@ export const LoginSelection: React.FC<LoginSelectionProps> = ({ onSelectRole }) 
     setError('');
 
     try {
+      // Cache-first: 0 Firestore reads for logged-in employees
+      const cached = getCachedEmployee(nik);
+      if (cached) {
+        onSelectRole(UserRole.EMPLOYEE, cached);
+        return;
+      }
+
       const docRef = doc(db, 'employees', nik);
       const docSnap = await getDoc(docRef);
 
@@ -55,7 +63,13 @@ export const LoginSelection: React.FC<LoginSelectionProps> = ({ onSelectRole }) 
         const empData = { id: docSnap.id, ...docSnap.data() } as Employee;
         onSelectRole(UserRole.EMPLOYEE, empData);
       } else {
-        setError('NIK tidak terdaftar! Silahkan hubungi Admin jika data belum di-seed.');
+        const fresh = await syncEmployees();
+        const empData = fresh[nik] || Object.values(fresh).find(e => e.nik === nik || e.nik === nik.toUpperCase());
+        if (empData) {
+          onSelectRole(UserRole.EMPLOYEE, empData);
+        } else {
+          setError('NIK tidak terdaftar! Silahkan hubungi Admin jika data belum di-seed.');
+        }
       }
     } catch (err) {
       console.error(err);

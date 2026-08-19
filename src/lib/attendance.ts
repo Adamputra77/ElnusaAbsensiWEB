@@ -2,10 +2,7 @@ import {
   collection, 
   query, 
   where, 
-  orderBy, 
-  limit, 
   getDocs, 
-  addDoc, 
   serverTimestamp,
   doc,
   getDoc,
@@ -15,8 +12,9 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { PresenceType, PresenceLog, Employee } from '../types';
-import { format } from 'date-fns';
+import { format, subDays } from 'date-fns';
 import { handleFirestoreError, OperationType } from './firestoreUtils';
+import { getCachedEmployee, syncEmployees } from './employeeCache';
 
 export async function getEmployeeByNik(nik: string): Promise<Employee | null> {
   // Clean input from any common scanner suffixes and non-printable characters
@@ -30,60 +28,28 @@ export async function getEmployeeByNik(nik: string): Promise<Employee | null> {
   if (!cleanNik) return null;
 
   try {
-    const employeesRef = collection(db, 'employees');
-    
-    // Strategy 1: Direct Document ID (Exactly as stored)
+    // Strategy 1: Client cache (0 Firestore reads — biggest quota saver)
+    const cached = getCachedEmployee(cleanNik);
+    if (cached) return cached;
+
+    // Strategy 2: Direct Document ID (Exactly as stored)
     const docRef = doc(db, 'employees', cleanNik);
     const docSnap = await getDoc(docRef);
     if (docSnap.exists()) {
       return { id: docSnap.id, ...docSnap.data() } as Employee;
     }
-    
-    // Strategy 2: Explicit 'nik' field query (Exact match)
-    const q1 = query(employeesRef, where('nik', '==', cleanNik));
-    const snap1 = await getDocs(q1);
-    if (!snap1.empty) {
-      const d = snap1.docs[0];
-      return { id: d.id, ...d.data() } as Employee;
-    }
 
-    // Strategy 3: Case-insensitive 'nik' search
-    const qUpper = query(employeesRef, where('nik', '==', cleanNik.toUpperCase()));
-    const snapUpper = await getDocs(qUpper);
-    if (!snapUpper.empty) return { id: snapUpper.docs[0].id, ...snapUpper.docs[0].data() } as Employee;
-
-    // Strategy 4: Numeric normalization (Leading Zeros)
-    if (/^\d+$/.test(cleanNik)) {
-       const stripped = cleanNik.replace(/^0+/, '');
-       if (stripped && stripped !== cleanNik) {
-         const qStripped = query(employeesRef, where('nik', '==', stripped));
-         const snapStripped = await getDocs(qStripped);
-         if (!snapStripped.empty) return { id: snapStripped.docs[0].id, ...snapStripped.docs[0].data() } as Employee;
-       }
-    }
-
-    // Strategy 5: Search by Name (Fallback if scanner reads the name instead of NIK)
-    const qName = query(employeesRef, where('name', '==', cleanNik.toUpperCase()));
-    const snapName = await getDocs(qName);
-    if (!snapName.empty) return { id: snapName.docs[0].id, ...snapName.docs[0].data() } as Employee;
-
-    // Strategy 6: Partial Name Match (Just in case scanner adds extra text or prefixes)
-    const qAll = query(employeesRef);
-    const allSnap = await getDocs(qAll);
-    const found = allSnap.docs.find(d => {
-      const data = d.data();
-      const storedNik = String(data.nik || d.id).toUpperCase();
-      const storedName = String(data.name || '').toUpperCase();
-      const searchVal = cleanNik.toUpperCase();
-      
-      return storedNik === searchVal || 
-             storedName === searchVal || 
-             storedName.includes(searchVal) ||
-             searchVal.includes(storedName);
-    });
-    
-    if (found) return { id: found.id, ...found.data() } as Employee;
-
+    // Strategy 3: Full collection scan as last resort (reads everything — only when cache misses)
+    const all = await syncEmployees();
+    const found = all[cleanNik]
+      || Object.values(all).find(e => e.nik === cleanNik)
+      || Object.values(all).find(e => e.nik === cleanNik.toUpperCase())
+      || Object.values(all).find(e => {
+        const storedName = String(e.name || '').toUpperCase();
+        const searchVal = cleanNik.toUpperCase();
+        return storedName === searchVal || storedName.includes(searchVal) || searchVal.includes(storedName);
+      });
+    if (found) return found;
   } catch (err) {
     handleFirestoreError(err, OperationType.GET, 'employees');
   }
@@ -121,9 +87,13 @@ export async function getLatestLog(employeeId: string, date: string): Promise<Pr
 export async function getAbsoluteLatestLog(employeeId: string): Promise<PresenceLog | null> {
   try {
     const logsRef = collection(db, 'presence_logs');
+    // Bound the query to yesterday + today to support night shifts
+    // without scanning the employee's entire log history on every scan.
+    const yesterdayStr = format(subDays(new Date(), 1), 'yyyy-MM-dd');
     const q = query(
       logsRef,
-      where('employeeId', '==', employeeId)
+      where('employeeId', '==', employeeId),
+      where('date', '>=', yesterdayStr)
     );
     const querySnapshot = await getDocs(q);
     if (!querySnapshot.empty) {
