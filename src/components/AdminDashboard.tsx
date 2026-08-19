@@ -44,7 +44,6 @@ import {
 } from 'lucide-react';
 import { SEED_EMPLOYEES } from '../seedData';
 import { syncEmployees, bumpEmployeeVersion } from '../lib/employeeCache';
-import { runMigration, buildDeltaOptions } from '../lib/migrate';
 
 import { UserRole } from '../types';
 
@@ -239,45 +238,6 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
   const [seedStep, setSeedStep] = useState<'idle' | 'confirming' | 'seeding' | 'success'>('idle');
   const [isMaintenanceMode, setIsMaintenanceMode] = useState(false);
   const [isRefreshingMaintenance, setIsRefreshingMaintenance] = useState(false);
-
-  const [migrateOpen, setMigrateOpen] = useState(false);
-  const [isMigrating, setIsMigrating] = useState(false);
-  const [migrateLog, setMigrateLog] = useState<string[]>([]);
-  const [migrateResult, setMigrateResult] = useState<string | null>(null);
-
-  const handleMigrate = async (mode: 'FULL' | 'DELTA') => {
-    if (isMigrating) return;
-    if (!migrateOpen) {
-      setMigrateOpen(true);
-      setMigrateLog([]);
-      setMigrateResult(null);
-      return;
-    }
-    setIsMigrating(true);
-    setMigrateResult(null);
-    setMigrateLog(mode === 'FULL'
-      ? ['Memulai migrasi data (skip yang sudah ada)...']
-      : [`Delta sync sejak ${format(new Date(), 'yyyy-MM-dd')}...`]);
-    try {
-      const opts = mode === 'FULL'
-        ? { skipIfPresent: true }
-        : buildDeltaOptions();
-      const summary = await runMigration((msg) => {
-        setMigrateLog(prev => [...prev.slice(-20), msg]);
-      }, opts);
-      const result = Object.entries(summary)
-        .map(([k, v]) => `${k}: ${v === -1 ? 'skipped' : v}`)
-        .join(', ');
-      setMigrateResult(`Selesai! ${result}`);
-      setMigrateLog(prev => [...prev, `Selesai! ${result}`]);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setMigrateResult(`Gagal: ${msg}`);
-      setMigrateLog(prev => [...prev, `Gagal: ${msg}`]);
-    } finally {
-      setIsMigrating(false);
-    }
-  };
 
   useEffect(() => {
     // Listen to maintenance mode for admin toggle state
@@ -665,78 +625,6 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
         )}
       </AnimatePresence>
 
-      {/* Migration Modal */}
-      <AnimatePresence>
-        {migrateOpen && (
-          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => { if (!isMigrating) setMigrateOpen(false); }}
-              className="absolute inset-0 bg-[#020617]/90 backdrop-blur-md"
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="w-full max-w-lg bg-slate-900 border border-slate-800 p-8 rounded-[2rem] shadow-2xl relative z-10"
-            >
-              <div className="mb-6">
-                <h2 className="text-2xl font-black text-white uppercase tracking-tight flex items-center gap-3">
-                  <RefreshCw size={22} className={isMigrating ? 'animate-spin text-amber-400' : 'text-amber-400'} />
-                  Migrasi Database
-                </h2>
-                <p className="text-slate-400 text-sm mt-3 font-medium leading-relaxed">
-                  Menyalin seluruh data dari database lama ke project Firebase baru.
-                  Aman diulang (tidak akan duplikat). Jangan tutup tab selama proses berjalan.
-                </p>
-              </div>
-
-              <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-4 h-56 overflow-y-auto mb-6 font-mono text-[10px] text-slate-400 leading-relaxed">
-                {migrateLog.length === 0 ? (
-                  <p className="text-slate-600">Menunggu instruksi...</p>
-                ) : (
-                  migrateLog.map((line, i) => <p key={i}>{line}</p>)
-                )}
-              </div>
-
-              {migrateResult && (
-                <p className={`text-[11px] font-black uppercase tracking-widest mb-6 ${migrateResult.startsWith('Selesai') ? 'text-green-400' : 'text-red-400'}`}>
-                  {migrateResult}
-                </p>
-              )}
-
-              <div className="flex gap-3">
-                <button
-                  onClick={() => handleMigrate('FULL')}
-                  disabled={isMigrating}
-                  className="flex-1 h-14 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl shadow-amber-600/20 active:scale-95 transition-all flex items-center justify-center gap-2"
-                >
-                  <RefreshCw size={16} className={isMigrating ? 'animate-spin' : ''} />
-                  {isMigrating ? 'Migrasi Berjalan...' : 'Mulai Migrasi'}
-                </button>
-                <button
-                  onClick={() => handleMigrate('DELTA')}
-                  disabled={isMigrating}
-                  className="flex-1 h-14 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl shadow-cyan-600/20 active:scale-95 transition-all flex items-center justify-center gap-2"
-                >
-                  <RefreshCw size={16} className={isMigrating ? 'animate-spin' : ''} />
-                  Delta Sync
-                </button>
-                <button
-                  onClick={() => setMigrateOpen(false)}
-                  disabled={isMigrating}
-                  className="px-6 h-14 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-white rounded-2xl font-black uppercase tracking-widest text-xs transition-all active:scale-95"
-                >
-                  Tutup
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
       <div className="max-w-7xl mx-auto">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 md:gap-8 mb-8 md:mb-12">
           <div className="flex items-center gap-4 md:gap-5">
@@ -806,32 +694,6 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
                     {seedStep === 'seeding' && '...'}
                     {seedStep === 'success' && 'OK'}
                   </span>
-                </button>
-              )}
-
-              {userRole === UserRole.ADMIN && (
-                <button 
-                  onClick={() => handleMigrate('FULL')}
-                  disabled={isMigrating}
-                  className={`flex items-center justify-center gap-2 px-4 md:px-5 py-2.5 md:py-3 rounded-xl font-semibold transition-all disabled:opacity-50 text-[10px] md:text-sm active:scale-95 border ${
-                    isMigrating
-                      ? 'bg-amber-600 border-amber-500 text-white'
-                      : 'bg-slate-800/80 hover:bg-slate-800 border-slate-700 text-slate-300'
-                  }`}
-                >
-                  <RefreshCw size={16} className={isMigrating ? 'animate-spin text-white' : 'text-amber-400'} />
-                  <span className="truncate">{isMigrating ? 'Migrasi...' : 'Migrasi DB'}</span>
-                </button>
-              )}
-
-              {userRole === UserRole.ADMIN && (
-                <button 
-                  onClick={() => handleMigrate('DELTA')}
-                  disabled={isMigrating}
-                  className="flex items-center justify-center gap-2 px-4 md:px-5 py-2.5 md:py-3 rounded-xl font-semibold transition-all disabled:opacity-50 text-[10px] md:text-sm active:scale-95 border bg-slate-800/80 hover:bg-slate-800 border-slate-700 text-slate-300"
-                >
-                  <RefreshCw size={16} className="text-cyan-400" />
-                  <span className="truncate">Delta Sync</span>
                 </button>
               )}
 
