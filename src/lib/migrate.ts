@@ -16,13 +16,14 @@ import {
 import { db } from '../firebase';
 import { format } from 'date-fns';
 
-const TARGET_CONFIG = {
-  apiKey: 'AIzaSyB6y06FzLHKYRBmJ3IXseBFLbZeQXWhKY8',
-  authDomain: 'elnusa-absensi-bsd.firebaseapp.com',
-  projectId: 'elnusa-absensi-bsd',
-  storageBucket: 'elnusa-absensi-bsd.firebasestorage.app',
-  messagingSenderId: '563884307915',
-  appId: '1:563884307915:web:fe11fd9880281ad686f24e'
+const SOURCE_CONFIG = {
+  apiKey: 'AIzaSyBj1ilMh8wo7XFzHkoBH9X4ERHiWZHM1TQ',
+  authDomain: 'gen-lang-client-0413165079.firebaseapp.com',
+  projectId: 'gen-lang-client-0413165079',
+  storageBucket: 'gen-lang-client-0413165079.firebasestorage.app',
+  messagingSenderId: '86337564398',
+  appId: '1:86337564398:web:2a598be3b2bf0e91850dff',
+  firestoreDatabaseId: 'ai-studio-6853cf5c-94a3-4d47-9b9a-b18a5e669070'
 };
 
 const COLLECTIONS = ['employees', 'presence_logs', 'stats', 'system_config'] as const;
@@ -92,14 +93,15 @@ export async function runMigration(
   onProgress: ProgressFn,
   opts: MigrationOptions = {}
 ): Promise<Record<string, number>> {
-  const targetApp = initializeApp(TARGET_CONFIG, 'migration-target');
-  const targetDb = getFirestore(targetApp);
+  const sourceApp = initializeApp(SOURCE_CONFIG, 'migration-source');
+  const sourceDb = getFirestore(sourceApp, SOURCE_CONFIG.firestoreDatabaseId);
+  const targetDb = db;
 
   const summary: Record<string, number> = {};
 
   try {
     for (const coll of COLLECTIONS) {
-      const sourceRef = collection(db, coll);
+      const sourceRef = collection(sourceDb, coll);
       const targetRef = collection(targetDb, coll);
 
       if (opts.skipIfPresent && !opts.sinceDate) {
@@ -135,7 +137,7 @@ export async function runMigration(
     }
   } finally {
     try {
-      await deleteApp(targetApp);
+      await deleteApp(sourceApp);
     } catch {
       // App instance may already be deleted — ignore
     }
