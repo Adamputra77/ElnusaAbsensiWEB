@@ -44,7 +44,7 @@ import {
 } from 'lucide-react';
 import { SEED_EMPLOYEES } from '../seedData';
 import { syncEmployees, bumpEmployeeVersion } from '../lib/employeeCache';
-import { runMigration } from '../lib/migrate';
+import { runMigration, buildDeltaOptions } from '../lib/migrate';
 
 import { UserRole } from '../types';
 
@@ -245,7 +245,7 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
   const [migrateLog, setMigrateLog] = useState<string[]>([]);
   const [migrateResult, setMigrateResult] = useState<string | null>(null);
 
-  const handleMigrate = async () => {
+  const handleMigrate = async (mode: 'FULL' | 'DELTA') => {
     if (isMigrating) return;
     if (!migrateOpen) {
       setMigrateOpen(true);
@@ -255,13 +255,18 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
     }
     setIsMigrating(true);
     setMigrateResult(null);
-    setMigrateLog(['Memulai migrasi data...']);
+    setMigrateLog(mode === 'FULL'
+      ? ['Memulai migrasi data (skip yang sudah ada)...']
+      : [`Delta sync sejak ${format(new Date(), 'yyyy-MM-dd')}...`]);
     try {
+      const opts = mode === 'FULL'
+        ? { skipIfPresent: true }
+        : buildDeltaOptions();
       const summary = await runMigration((msg) => {
         setMigrateLog(prev => [...prev.slice(-20), msg]);
-      });
+      }, opts);
       const result = Object.entries(summary)
-        .map(([k, v]) => `${k}: ${v}`)
+        .map(([k, v]) => `${k}: ${v === -1 ? 'skipped' : v}`)
         .join(', ');
       setMigrateResult(`Selesai! ${result}`);
       setMigrateLog(prev => [...prev, `Selesai! ${result}`]);
@@ -704,12 +709,20 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
 
               <div className="flex gap-3">
                 <button
-                  onClick={handleMigrate}
+                  onClick={() => handleMigrate('FULL')}
                   disabled={isMigrating}
                   className="flex-1 h-14 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl shadow-amber-600/20 active:scale-95 transition-all flex items-center justify-center gap-2"
                 >
                   <RefreshCw size={16} className={isMigrating ? 'animate-spin' : ''} />
                   {isMigrating ? 'Migrasi Berjalan...' : 'Mulai Migrasi'}
+                </button>
+                <button
+                  onClick={() => handleMigrate('DELTA')}
+                  disabled={isMigrating}
+                  className="flex-1 h-14 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl shadow-cyan-600/20 active:scale-95 transition-all flex items-center justify-center gap-2"
+                >
+                  <RefreshCw size={16} className={isMigrating ? 'animate-spin' : ''} />
+                  Delta Sync
                 </button>
                 <button
                   onClick={() => setMigrateOpen(false)}
@@ -798,7 +811,7 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
 
               {userRole === UserRole.ADMIN && (
                 <button 
-                  onClick={handleMigrate}
+                  onClick={() => handleMigrate('FULL')}
                   disabled={isMigrating}
                   className={`flex items-center justify-center gap-2 px-4 md:px-5 py-2.5 md:py-3 rounded-xl font-semibold transition-all disabled:opacity-50 text-[10px] md:text-sm active:scale-95 border ${
                     isMigrating
@@ -808,6 +821,17 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
                 >
                   <RefreshCw size={16} className={isMigrating ? 'animate-spin text-white' : 'text-amber-400'} />
                   <span className="truncate">{isMigrating ? 'Migrasi...' : 'Migrasi DB'}</span>
+                </button>
+              )}
+
+              {userRole === UserRole.ADMIN && (
+                <button 
+                  onClick={() => handleMigrate('DELTA')}
+                  disabled={isMigrating}
+                  className="flex items-center justify-center gap-2 px-4 md:px-5 py-2.5 md:py-3 rounded-xl font-semibold transition-all disabled:opacity-50 text-[10px] md:text-sm active:scale-95 border bg-slate-800/80 hover:bg-slate-800 border-slate-700 text-slate-300"
+                >
+                  <RefreshCw size={16} className="text-cyan-400" />
+                  <span className="truncate">Delta Sync</span>
                 </button>
               )}
 
