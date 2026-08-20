@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Scan, Users, LogIn, LogOut, Search, AlertCircle, Clock } from 'lucide-react';
 import { processScan } from '../lib/attendance';
@@ -213,6 +213,19 @@ export default function ScanInterface() {
   const activeManHours = calculateActiveRealtimeHours(logs, manHoursNow);
   // Total dashboard accumulative hours = Completed (Persisted in DB) + Active (Live)
   const totalAccumManHours = completedManHours + activeManHours;
+  // Live POB derived from logs (yesterday + today): someone whose latest log is IN is still on site.
+  // Never negative and correct across night shifts, unlike the per-day stats counter.
+  const livePob = useMemo(() => {
+    const lastByEmployee: Record<string, PresenceLog> = {};
+    logs.forEach(log => {
+      const ts = (log.timestamp as any)?.seconds || 0;
+      const existing = lastByEmployee[log.employeeId];
+      if (!existing || ts >= ((existing.timestamp as any)?.seconds || 0)) {
+        lastByEmployee[log.employeeId] = log;
+      }
+    });
+    return Object.values(lastByEmployee).filter(l => l.type === PresenceType.IN).length;
+  }, [logs]);
 
   return (
     <div className="flex flex-col min-h-screen bg-[#020617] text-slate-100 font-sans overflow-hidden">
@@ -388,7 +401,7 @@ export default function ScanInterface() {
             <Users size={80} className="text-blue-500" />
           </div>
           <span className="text-blue-400 text-sm sm:text-lg md:text-2xl font-black uppercase tracking-[0.2em] mb-1 sm:mb-3">POB <span className="text-[6px] sm:text-xs md:text-sm text-blue-500/50 grow-0 ml-1 sm:ml-2">(POB)</span></span>
-          <span className="text-3xl sm:text-5xl md:text-8xl font-mono text-white font-black tracking-tighter transition-transform group-hover:scale-105 origin-left tracking-[-0.05em]">{stats.pob}</span>
+          <span className="text-3xl sm:text-5xl md:text-8xl font-mono text-white font-black tracking-tighter transition-transform group-hover:scale-105 origin-left tracking-[-0.05em]">{livePob}</span>
         </div>
 
         <div className="bg-emerald-600/10 border-2 border-emerald-500/40 p-3 sm:p-6 md:p-10 rounded-xl sm:rounded-2xl md:rounded-[2.5rem] flex flex-col relative overflow-hidden group hover:bg-emerald-600/20 transition-all shadow-[0_0_50px_rgba(16,185,129,0.1)]">

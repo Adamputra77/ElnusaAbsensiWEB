@@ -43,7 +43,7 @@ export default function WarehouseDashboard({ onBack }: WarehouseDashboardProps) 
       if (snap.exists()) {
         const data = snap.data();
         setRealStats({
-          pob: data.pob || 0,
+          pob: Math.max(0, data.pob || 0),
           visitorIn: data.visitorIn || 0
         });
       }
