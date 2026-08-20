@@ -53,6 +53,7 @@ interface AdminDashboardProps {
 
 export default function AdminDashboard({ userRole }: AdminDashboardProps) {
   const [logs, setLogs] = useState<any[]>([]);
+  const [logResetAt, setLogResetAt] = useState<number>(0);
   const [employees, setEmployees] = useState<Record<string, Employee>>({});
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [selectedDept, setSelectedDept] = useState('All');
@@ -101,8 +102,17 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
       handleFirestoreError(err, OperationType.GET, 'presence_logs');
     });
 
+    // 3. Reset marker for the selected date (logs before it are hidden from view, data preserved)
+    const unsubReset = onSnapshot(doc(db, 'stats', selectedDate), (snap) => {
+      const data = snap.data() as any;
+      setLogResetAt((data?.resetAt as any)?.seconds || 0);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, `stats/${selectedDate}`);
+    });
+
     return () => {
       unsubLogs();
+      unsubReset();
     };
   }, [selectedDate, selectedDept]);
 
@@ -361,6 +371,7 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
   };
 
   const filteredLogs = logs.filter(log => {
+    if (logResetAt && (!log.timestamp || log.timestamp.getTime() / 1000 < logResetAt)) return false;
     const emp = employees[log.employeeId];
     if (selectedDept !== 'All' && emp?.department !== selectedDept) return false;
     return true;
@@ -370,7 +381,7 @@ export default function AdminDashboard({ userRole }: AdminDashboardProps) {
 
   // Logic for IN and OUT status
   const currentStates: Record<string, PresenceType> = {};
-  logs.slice().reverse().forEach(log => {
+  filteredLogs.slice().reverse().forEach(log => {
     currentStates[log.employeeId] = log.type;
   });
 
