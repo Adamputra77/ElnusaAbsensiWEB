@@ -14,6 +14,7 @@ import { syncEmployees } from '../lib/employeeCache';
 export default function ScanInterface() {
   const [nikInput, setNikInput] = useState('');
   const [stats, setStats] = useState<DailyStats>({ in: 0, out: 0, pob: 0, totalVisits: 0, visitorIn: 0, visitorOut: 0 });
+  const [statsResetAt, setStatsResetAt] = useState<number>(0);
   const [employees, setEmployees] = useState<Record<string, Employee>>({});
   const [logs, setLogs] = useState<PresenceLog[]>([]);
   const [completedManHours, setCompletedManHours] = useState<number>(0);
@@ -83,9 +84,12 @@ export default function ScanInterface() {
     const today = format(new Date(), 'yyyy-MM-dd');
     const unsubscribe = onSnapshot(doc(db, 'stats', today), (snap) => {
       if (snap.exists()) {
-        setStats(snap.data() as DailyStats);
+        const data = snap.data() as any;
+        setStats(data as DailyStats);
+        setStatsResetAt((data.resetAt as any)?.seconds || 0);
       } else {
         setStats({ in: 0, out: 0, pob: 0, totalVisits: 0, visitorIn: 0, visitorOut: 0 });
+        setStatsResetAt(0);
       }
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, `stats/${today}`);
@@ -215,17 +219,19 @@ export default function ScanInterface() {
   const totalAccumManHours = completedManHours + activeManHours;
   // Live POB derived from logs (yesterday + today): someone whose latest log is IN is still on site.
   // Never negative and correct across night shifts, unlike the per-day stats counter.
+  // If stats/{today}.resetAt is set, only logs AFTER that point count (used to re-test from a clean slate).
   const livePob = useMemo(() => {
     const lastByEmployee: Record<string, PresenceLog> = {};
     logs.forEach(log => {
       const ts = (log.timestamp as any)?.seconds || 0;
+      if (statsResetAt && ts < statsResetAt) return;
       const existing = lastByEmployee[log.employeeId];
       if (!existing || ts >= ((existing.timestamp as any)?.seconds || 0)) {
         lastByEmployee[log.employeeId] = log;
       }
     });
     return Object.values(lastByEmployee).filter(l => l.type === PresenceType.IN).length;
-  }, [logs]);
+  }, [logs, statsResetAt]);
 
   return (
     <div className="flex flex-col min-h-screen bg-[#020617] text-slate-100 font-sans overflow-hidden">
