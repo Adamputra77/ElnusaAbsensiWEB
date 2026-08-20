@@ -126,9 +126,25 @@ export async function processScan(nik: string): Promise<{ success: boolean; mess
     const todayStr = format(new Date(), 'yyyy-MM-dd');
     const latestLog = await getAbsoluteLatestLog(employee.id);
 
-    // Guard: Prevent double-scans within a 1-minute window
+    // If stats/{today}.resetAt is set, ignore logs before it so re-testing starts with a clean slate
+    // (everyone scans IN on their first post-reset scan regardless of older history).
+    let effectiveLatestLog = latestLog;
     if (latestLog && latestLog.timestamp) {
-      const lastSeconds = (latestLog.timestamp as any).seconds || Math.floor(new Date(latestLog.timestamp).getTime() / 1000);
+      const resetSnap = await getDoc(doc(db, 'stats', todayStr));
+      const resetAt = (resetSnap.data() as any)?.resetAt as any;
+      const resetSeconds = resetAt?.seconds || 0;
+      if (resetSeconds) {
+        const latestSeconds = (latestLog.timestamp as any).seconds
+          || Math.floor(new Date(latestLog.timestamp).getTime() / 1000);
+        if (latestSeconds < resetSeconds) {
+          effectiveLatestLog = null;
+        }
+      }
+    }
+
+    // Guard: Prevent double-scans within a 1-minute window
+    if (effectiveLatestLog && effectiveLatestLog.timestamp) {
+      const lastSeconds = (effectiveLatestLog.timestamp as any).seconds || Math.floor(new Date(effectiveLatestLog.timestamp).getTime() / 1000);
       const lastTime = lastSeconds * 1000;
       const now = Date.now();
       const diffMinutes = (now - lastTime) / (1000 * 60);
@@ -143,7 +159,7 @@ export async function processScan(nik: string): Promise<{ success: boolean; mess
     }
 
     let nextType = PresenceType.IN;
-    if (latestLog && latestLog.type === PresenceType.IN) {
+    if (effectiveLatestLog && effectiveLatestLog.type === PresenceType.IN) {
       nextType = PresenceType.OUT;
     }
 
@@ -183,10 +199,10 @@ export async function processScan(nik: string): Promise<{ success: boolean; mess
     batch.set(statsRef, statsUpdate, { merge: true });
 
     // 3. Accumulate Running Total Man Hours to Firestore under stats/warehouse
-    if (nextType === PresenceType.OUT && latestLog && latestLog.timestamp) {
-      const checkInTime = typeof latestLog.timestamp.toDate === 'function'
-        ? latestLog.timestamp.toDate()
-        : new Date(latestLog.timestamp);
+    if (nextType === PresenceType.OUT && effectiveLatestLog && effectiveLatestLog.timestamp) {
+      const checkInTime = typeof effectiveLatestLog.timestamp.toDate === 'function'
+        ? effectiveLatestLog.timestamp.toDate()
+        : new Date(effectiveLatestLog.timestamp);
       
       const checkOutTime = new Date();
       const durationMs = checkOutTime.getTime() - checkInTime.getTime();

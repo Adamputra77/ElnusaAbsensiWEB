@@ -213,8 +213,16 @@ export default function ScanInterface() {
   };
 
   const todayStr = format(currentTime, 'yyyy-MM-dd');
+  // Logs after the reset point only (when a reset marker exists) for live man hours & POB.
+  const activeLogs = useMemo(() => {
+    if (!statsResetAt) return logs;
+    return logs.filter(log => {
+      const ts = (log.timestamp as any)?.seconds || 0;
+      return ts >= statsResetAt;
+    });
+  }, [logs, statsResetAt]);
   // Dynamic live active man hours for checked-in users (employees + visitors)
-  const activeManHours = calculateActiveRealtimeHours(logs, manHoursNow);
+  const activeManHours = calculateActiveRealtimeHours(activeLogs, manHoursNow);
   // Total dashboard accumulative hours = Completed (Persisted in DB) + Active (Live)
   const totalAccumManHours = completedManHours + activeManHours;
   // Live POB derived from logs (yesterday + today): someone whose latest log is IN is still on site.
