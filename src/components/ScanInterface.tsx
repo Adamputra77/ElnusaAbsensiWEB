@@ -11,6 +11,40 @@ import { handleFirestoreError, OperationType } from '../lib/firestoreUtils';
 import { calculateActiveRealtimeHours } from '../lib/manHours';
 import { syncEmployees } from '../lib/employeeCache';
 
+// Scan feedback sounds via Web Audio API (no audio files needed)
+function playScanSound(type: 'IN' | 'OUT' | 'ERROR') {
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const tone = (freq: number, delay: number, duration: number) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      const t0 = ctx.currentTime + delay;
+      gain.gain.setValueAtTime(0.0001, t0);
+      gain.gain.exponentialRampToValueAtTime(0.25, t0 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
+      osc.start(t0);
+      osc.stop(t0 + duration + 0.05);
+    };
+    if (type === 'IN') {
+      tone(880, 0, 0.12);      // double high beep = welcome
+      tone(1175, 0.16, 0.16);
+    } else if (type === 'OUT') {
+      tone(660, 0, 0.22);      // single mid beep = goodbye
+    } else {
+      tone(220, 0, 0.28);      // low buzz = error/cooldown
+    }
+    setTimeout(() => { ctx.close().catch(() => {}); }, 1200);
+  } catch {
+    // Audio not available — silent fallback
+  }
+}
+
 export default function ScanInterface() {
   const [nikInput, setNikInput] = useState('');
   const [stats, setStats] = useState<DailyStats>({ in: 0, out: 0, pob: 0, totalVisits: 0, visitorIn: 0, visitorOut: 0 });
@@ -166,16 +200,19 @@ export default function ScanInterface() {
           employee: result.employee,
           scanType: result.type
         });
+        playScanSound(result.type === PresenceType.OUT ? 'OUT' : 'IN');
       } else {
         // Show check if it was just a cooldown from server
         setNotification({ 
           message: result.message, 
           type: result.message.includes('tunggu') ? 'error' : 'error' 
         });
+        playScanSound('ERROR');
       }
     } catch (err) {
       console.error("Scan Error:", err);
       setNotification({ message: 'Terjadi kegagalan sistem.', type: 'error' });
+      playScanSound('ERROR');
     } finally {
       // Release locks
       isProcessingRef.current = false;
@@ -189,10 +226,10 @@ export default function ScanInterface() {
       }, 100);
     }
 
-    // Clear notification after 5 seconds
+    // Clear notification after 4 seconds
     setTimeout(() => {
       setNotification(prev => (prev?.type === 'success' || prev?.type === 'error' ? null : prev));
-    }, 5000);
+    }, 4000);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -344,10 +381,10 @@ export default function ScanInterface() {
             </div>
           </div>
 
-          {/* Notifications / Results Overlay */}
+          {/* Inline Error / Cooldown Notification */}
           <div className="mt-8 md:mt-16 h-auto md:h-40 w-full max-w-2xl">
             <AnimatePresence mode="wait">
-              {notification && (
+              {notification && notification.type === 'error' && (
                 <motion.div
                   key={notification.message}
                   initial={{ opacity: 0, scale: 0.95, y: 10 }}
@@ -391,6 +428,92 @@ export default function ScanInterface() {
           </div>
         </div>
       </main>
+
+      {/* Full-screen Scan Result Popup (HADIR / SELAMAT JALAN) */}
+      <AnimatePresence>
+        {notification?.type === 'success' && notification.employee && (
+          <motion.div
+            key="scan-popup-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className={`fixed inset-0 z-[300] flex items-center justify-center p-4 backdrop-blur-md ${
+              notification.scanType === PresenceType.OUT ? 'bg-red-950/60' : 'bg-emerald-950/50'
+            }`}
+          >
+            <motion.div
+              initial={{ scale: 0.5, y: 40, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.8, y: -30, opacity: 0 }}
+              transition={{ type: 'spring', damping: 18, stiffness: 260 }}
+              className={`relative w-full max-w-md rounded-[3rem] border-2 p-8 md:p-12 text-center shadow-2xl overflow-hidden ${
+                notification.scanType === PresenceType.OUT
+                  ? 'bg-gradient-to-br from-slate-900 via-slate-950 to-red-950/80 border-red-500/60 shadow-red-600/30'
+                  : 'bg-gradient-to-br from-slate-900 via-slate-950 to-emerald-950/80 border-emerald-500/60 shadow-emerald-500/30'
+              }`}
+            >
+              {/* Top accent strip */}
+              <div className={`absolute top-0 left-0 right-0 h-2 ${
+                notification.scanType === PresenceType.OUT
+                  ? 'bg-gradient-to-r from-red-600 via-orange-500 to-red-600'
+                  : 'bg-gradient-to-r from-emerald-600 via-green-400 to-emerald-600'
+              }`} />
+
+              {/* Icon badge */}
+              <motion.div
+                initial={{ scale: 0, rotate: -30 }}
+                animate={{ scale: 1, rotate: 0 }}
+                transition={{ delay: 0.15, type: 'spring', damping: 12 }}
+                className={`w-24 h-24 md:w-28 md:h-28 mx-auto mb-6 rounded-full flex items-center justify-center shadow-xl ${
+                  notification.scanType === PresenceType.OUT
+                    ? 'bg-red-500 shadow-red-500/40'
+                    : 'bg-emerald-500 shadow-emerald-500/40'
+                }`}
+              >
+                {notification.scanType === PresenceType.OUT ? <LogOut size={48} className="text-white" /> : <LogIn size={48} className="text-white" />}
+              </motion.div>
+
+              {/* Status text */}
+              <motion.h2
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.25 }}
+                className={`text-5xl md:text-7xl font-black uppercase tracking-tighter leading-none ${
+                  notification.scanType === PresenceType.OUT ? 'text-red-400' : 'text-emerald-400'
+                }`}
+              >
+                {notification.scanType === PresenceType.OUT ? 'Keluar' : 'Hadir'}
+              </motion.h2>
+              <p className={`mt-2 text-xs font-black uppercase tracking-[0.3em] ${notification.scanType === PresenceType.OUT ? 'text-red-300/70' : 'text-emerald-300/70'}`}>
+                {notification.scanType === PresenceType.OUT ? notification.message.replace('Selamat Jalan,', 'Sampai Jumpa') : 'Selamat Datang'}
+              </p>
+
+              {/* Employee info */}
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.35 }}
+                className="mt-8 bg-white/5 border border-white/10 rounded-3xl p-5 space-y-1"
+              >
+                <p className="text-2xl md:text-3xl font-black text-white uppercase tracking-tight truncate">
+                  {notification.employee.name}
+                </p>
+                <p className={`text-[10px] font-black uppercase tracking-widest ${notification.scanType === PresenceType.OUT ? 'text-red-300' : 'text-emerald-300'}`}>
+                  DEPT: {notification.employee.department}
+                </p>
+                <p className="text-[9px] font-mono text-slate-500 uppercase tracking-widest pt-1">
+                  NIK: {notification.employee.nik || notification.employee.id} • {format(new Date(), 'HH:mm:ss')}
+                </p>
+              </motion.div>
+
+              {/* Auto-close hint */}
+              <p className="mt-6 text-[8px] font-black uppercase tracking-[0.4em] text-slate-600 animate-pulse">
+                WH ELNUSA BSD • GATE SYSTEM
+              </p>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Summary Stats Footer Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-3 md:gap-8 p-2 sm:p-4 md:p-12 bg-[#0f172a]/60 border-t border-slate-800 backdrop-blur-2xl">

@@ -77,34 +77,31 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (userRole === UserRole.EMPLOYEE && authEmployee) {
-      fetchMyLogs();
-    }
-  }, [userRole, authEmployee]);
+    if (userRole !== UserRole.EMPLOYEE || !authEmployee) return;
 
-  const fetchMyLogs = async () => {
-    if (!authEmployee) return;
-    setIsLoadingLogs(true);
-    try {
-      const logsRef = collection(db, 'presence_logs');
-      const q = query(
-        logsRef,
-        where('employeeId', '==', authEmployee.id),
-        orderBy('timestamp', 'desc')
-      );
-      const snap = await getDocs(q);
-      const list = snap.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        timestamp: (doc.data().timestamp as Timestamp)?.toDate()
-      })) as PresenceLog[];
-      setMyLogs(list);
-    } catch (err) {
-      handleFirestoreError(err, OperationType.GET, 'presence_logs');
-    } finally {
+    // Real-time history listener.
+    // NOTE: no orderBy in the query — sorting is done in memory below to avoid
+    // the mandatory composite index (employeeId ASC, timestamp DESC).
+    const logsRef = collection(db, 'presence_logs');
+    const q = query(logsRef, where('employeeId', '==', authEmployee.id));
+
+    const unsubscribe = onSnapshot(q, (snap) => {
+      const list = snap.docs
+        .map(d => ({
+          id: d.id,
+          ...d.data(),
+          timestamp: (d.data().timestamp as Timestamp)?.toDate()
+        }))
+        .sort((a, b) => ((b.timestamp as any)?.getTime?.() || 0) - ((a.timestamp as any)?.getTime?.() || 0));
+      setMyLogs(list as PresenceLog[]);
       setIsLoadingLogs(false);
-    }
-  };
+    }, (err) => {
+      handleFirestoreError(err, OperationType.GET, 'presence_logs');
+      setIsLoadingLogs(false);
+    });
+
+    return () => unsubscribe();
+  }, [userRole, authEmployee]);
 
   // Define the main content based on role
   let mainContent;
@@ -160,12 +157,10 @@ export default function App() {
                     <History className="text-purple-400" size={20} />
                     Riwayat Kehadiran
                   </h2>
-                  <button 
-                    onClick={fetchMyLogs}
-                    className="text-[9px] font-black uppercase tracking-widest text-slate-500 hover:text-white transition-colors"
-                  >
-                    Refresh
-                  </button>
+                  <span className="flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-green-400">
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
+                    Live
+                  </span>
                 </div>
                 
                 <div className="p-2 overflow-x-auto">
