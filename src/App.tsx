@@ -148,6 +148,32 @@ export default function App() {
             </button>
           </header>
 
+          {/* Mobile-only Access Code — QR + Barcode di paling atas agar tidak perlu scroll jauh */}
+          <div className="lg:hidden bg-white rounded-[2rem] shadow-2xl p-6 flex flex-col items-center gap-4">
+            <div className="flex items-center gap-2 self-start">
+              <QrCode className="text-blue-500" size={16} />
+              <span className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Scan QR Code</span>
+            </div>
+            <div className="bg-white p-3 rounded-2xl border-2 border-slate-50 shadow-inner">
+              <QRCode
+                value={authEmployee.id}
+                size={150}
+                level="H"
+              />
+            </div>
+            <div className="w-full h-px bg-slate-100" />
+            <Barcode
+              value={authEmployee.id}
+              width={1.2}
+              height={48}
+              fontSize={10}
+              margin={0}
+            />
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest text-center leading-relaxed">
+              Tunjukkan kode di atas ke Security untuk absen
+            </p>
+          </div>
+
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
             {/* Main Log History */}
             <div className="lg:col-span-2 space-y-6">
@@ -163,7 +189,8 @@ export default function App() {
                   </span>
                 </div>
                 
-                <div className="p-2 overflow-x-auto">
+                {/* Scrollable history list — page height stays fixed, only rows swipe inside */}
+                <div className="p-2 overflow-x-auto overflow-y-auto max-h-[55vh] lg:max-h-[620px]">
                   {isLoadingLogs ? (
                     <div className="py-16 md:py-24 flex flex-col items-center gap-4 text-slate-500">
                       <Loader2 size={32} className="animate-spin text-purple-500" />
@@ -216,8 +243,8 @@ export default function App() {
 
             {/* Sidebar Stats & Info */}
             <div className="space-y-6 md:space-y-8">
-              {/* My Access Code Card */}
-              <div className="bg-white p-6 md:p-8 rounded-[2rem] md:rounded-[2.5rem] shadow-2xl flex flex-col items-center">
+              {/* My Access Code Card (desktop only — mobile version is rendered above) */}
+              <div className="hidden lg:flex bg-white p-6 md:p-8 rounded-[2rem] md:rounded-[2.5rem] shadow-2xl flex-col items-center">
                 <div className="flex items-center gap-2 mb-6">
                   <QrCode className="text-blue-500" size={16} />
                   <span className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Scan QR Code</span>
