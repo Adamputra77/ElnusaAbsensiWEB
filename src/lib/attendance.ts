@@ -176,27 +176,63 @@ export async function processScan(nik: string): Promise<{ success: boolean; mess
     });
 
     // 2. Update the Daily Stats document for real-time aggregation
+    // Recalculate from today's logs to reflect current state (not cumulative counts)
     const statsRef = doc(db, 'stats', todayStr);
-    const isVisitor = employee.isVisitor === true;
     
-    const statsUpdate: any = {};
-    if (nextType === PresenceType.IN) {
-      statsUpdate.in = increment(1);
-      statsUpdate.pob = increment(1);
-      if (isVisitor) {
-        statsUpdate.totalVisits = increment(1);
-        statsUpdate.visitorIn = increment(1);
+    // Fetch all employees for visitor check
+    const allEmployees = await syncEmployees();
+    
+    // Fetch today's logs
+    const todayLogsSnap = await getDocs(query(
+      collection(db, 'presence_logs'),
+      where('date', '==', todayStr)
+    ));
+    
+    const currentStates: Record<string, PresenceType> = {};
+    const uniqueInEmployees = new Set<string>();
+    const uniqueVisitorIn = new Set<string>();
+    let visitorInCount = 0;
+    let visitorOutCount = 0;
+    
+    // Sort descending by timestamp to get latest log per employee
+    const todayLogs = todayLogsSnap.docs
+      .map(d => ({ id: d.id, ...d.data() } as PresenceLog))
+      .sort((a, b) => {
+        const t1 = (a.timestamp as any)?.seconds || 0;
+        const t2 = (b.timestamp as any)?.seconds || 0;
+        return t2 - t1; // Descending
+      });
+    
+    todayLogs.forEach(log => {
+      if (!currentStates[log.employeeId]) {
+        currentStates[log.employeeId] = log.type;
+        if (log.type === PresenceType.IN) {
+          uniqueInEmployees.add(log.employeeId);
+        }
       }
-    } else {
-      statsUpdate.out = increment(1);
-      statsUpdate.pob = increment(-1);
-      if (isVisitor) {
-        statsUpdate.visitorOut = increment(1);
+      const emp = allEmployees[log.employeeId];
+      const isVisitor = emp?.isVisitor === true;
+      if (log.type === PresenceType.IN && isVisitor) {
+        visitorInCount++;
+        uniqueVisitorIn.add(log.employeeId);
       }
-    }
-
-    // Ensure document exists and update counters atomically
-    batch.set(statsRef, statsUpdate, { merge: true });
+      if (log.type === PresenceType.OUT && isVisitor) visitorOutCount++;
+    });
+    
+    const currentlyIn = Object.values(currentStates).filter(s => s === PresenceType.IN).length;
+    const currentlyOut = Object.values(currentStates).filter(s => s === PresenceType.OUT).length;
+    
+    const statsUpdate = {
+      in: uniqueInEmployees.size,
+      out: currentlyOut,
+      pob: currentlyIn,
+      totalVisits: uniqueVisitorIn.size,
+      visitorIn: visitorInCount,
+      visitorOut: visitorOutCount
+    };
+    
+    // Overwrite (no merge) - set absolute values
+    batch.set(statsRef, statsUpdate);
 
     // 3. Accumulate Running Total Man Hours to Firestore under stats/warehouse
     if (nextType === PresenceType.OUT && effectiveLatestLog && effectiveLatestLog.timestamp) {
