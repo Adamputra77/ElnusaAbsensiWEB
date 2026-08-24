@@ -8,7 +8,8 @@ import {
   getDoc,
   setDoc,
   increment,
-  writeBatch
+  writeBatch,
+  Timestamp
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { PresenceType, PresenceLog, Employee } from '../types';
@@ -179,6 +180,14 @@ export async function processScan(nik: string): Promise<{ success: boolean; mess
     // Recalculate from today's logs to reflect current state (not cumulative counts)
     const statsRef = doc(db, 'stats', todayStr);
     
+    // --- Check resetAt marker ---
+    // If resetAt is set, only count logs from that timestamp onwards (start of fresh day)
+    let resetAtSeconds = 0;
+    const resetSnap = await getDoc(statsRef);
+    if (resetSnap.exists()) {
+      resetAtSeconds = (resetSnap.data() as any)?.resetAt?.seconds || 0;
+    }
+    
     // Fetch all employees for visitor check
     const allEmployees = await syncEmployees();
     
@@ -188,6 +197,17 @@ export async function processScan(nik: string): Promise<{ success: boolean; mess
       where('date', '==', todayStr)
     ));
     
+    // Filter logs: only include those >= resetAt if marker exists
+    const filteredLogs = resetAtSeconds > 0
+      ? todayLogsSnap.docs
+          .map(d => ({ id: d.id, ...d.data() } as PresenceLog))
+          .filter((log: any) => {
+            const logTs = (log.timestamp as any)?.seconds || 0;
+            return logTs >= resetAtSeconds;
+          })
+      : todayLogsSnap.docs
+          .map(d => ({ id: d.id, ...d.data() } as PresenceLog));
+    
     const currentStates: Record<string, PresenceType> = {};
     const uniqueInEmployees = new Set<string>();
     const uniqueVisitorIn = new Set<string>();
@@ -195,8 +215,7 @@ export async function processScan(nik: string): Promise<{ success: boolean; mess
     let visitorOutCount = 0;
     
     // Sort descending by timestamp to get latest log per employee
-    const todayLogs = todayLogsSnap.docs
-      .map(d => ({ id: d.id, ...d.data() } as PresenceLog))
+    const todayLogs = filteredLogs
       .sort((a, b) => {
         const t1 = (a.timestamp as any)?.seconds || 0;
         const t2 = (b.timestamp as any)?.seconds || 0;
@@ -218,11 +237,24 @@ export async function processScan(nik: string): Promise<{ success: boolean; mess
       }
       if (log.type === PresenceType.OUT && isVisitor) visitorOutCount++;
     });
-    
+
+    // Include the CURRENT scan in the computation
+    // (it lives in this same batch, so the query above cannot see it yet)
+    currentStates[employee.id] = nextType;
+    if (nextType === PresenceType.IN) {
+      uniqueInEmployees.add(employee.id);
+      if (employee.isVisitor === true) {
+        visitorInCount++;
+        uniqueVisitorIn.add(employee.id);
+      }
+    } else if (employee.isVisitor === true) {
+      visitorOutCount++;
+    }
+
     const currentlyIn = Object.values(currentStates).filter(s => s === PresenceType.IN).length;
     const currentlyOut = Object.values(currentStates).filter(s => s === PresenceType.OUT).length;
-    
-    const statsUpdate = {
+
+    const statsUpdate: Record<string, any> = {
       in: uniqueInEmployees.size,
       out: currentlyOut,
       pob: currentlyIn,
@@ -230,6 +262,11 @@ export async function processScan(nik: string): Promise<{ success: boolean; mess
       visitorIn: visitorInCount,
       visitorOut: visitorOutCount
     };
+
+    // Preserve resetAt marker so future scans keep ignoring pre-reset logs
+    if (resetAtSeconds > 0) {
+      statsUpdate.resetAt = Timestamp.fromMillis(resetAtSeconds * 1000);
+    }
     
     // Overwrite (no merge) - set absolute values
     batch.set(statsRef, statsUpdate);
