@@ -251,13 +251,13 @@ export async function processScan(nik: string): Promise<{ success: boolean; mess
       visitorOutCount++;
     }
 
-    const currentlyIn = Object.values(currentStates).filter(s => s === PresenceType.IN).length;
-    const currentlyOut = Object.values(currentStates).filter(s => s === PresenceType.OUT).length;
+    const inCount = Object.values(currentStates).filter(s => s === PresenceType.IN).length;
+    const outCount = Object.values(currentStates).filter(s => s === PresenceType.OUT).length;
 
     const statsUpdate: Record<string, any> = {
-      in: uniqueInEmployees.size,
-      out: currentlyOut,
-      pob: currentlyIn,
+      in: inCount,
+      out: outCount,
+      pob: inCount,
       totalVisits: uniqueVisitorIn.size,
       visitorIn: visitorInCount,
       visitorOut: visitorOutCount
