@@ -47,7 +47,7 @@ export default defineConfig(({mode}) => {
         workbox: {
           maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
           globPatterns: ['**/*.{js,css,svg,png,ico,woff2}'],
-          globIgnores: ['**/leaflet*.js', '**/react-leaflet*.js'],
+          globIgnores: ['**/vendor-leaflet*.js', '**/leaflet*.js', '**/react-leaflet*.js'],
           runtimeCaching: [
             {
               urlPattern: /^https:\/\/firestore\.googleapis\.com\/.*/i,
