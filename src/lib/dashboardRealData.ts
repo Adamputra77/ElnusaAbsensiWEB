@@ -174,7 +174,7 @@ export async function fetchDashboardData(
       ? dayLogs.filter(l => getLogTimestampSeconds(l) >= resetAt)
       : dayLogs;
     
-    // Track latest log per employee for this date
+    // Track latest log per employee for this date (for current status: dept/shift breakdown)
     const latestPerEmployee = new Map<string, PresenceLog>();
     for (const log of validLogs) {
       const existing = latestPerEmployee.get(log.employeeId);
@@ -183,27 +183,43 @@ export async function fetchDashboardData(
       }
     }
     
-    // Count unique IN, visitors, departments, shifts
+    // Count unique IN from ALL valid logs (anyone who EVER scanned IN that day)
+    // This ensures "Masuk" never decreases - only increases when NEW people scan IN
     const inEmployees = new Set<string>();
     const outEmployees = new Set<string>();
     const deptInCount = new Map<string, number>();
     const shiftInCount = new Map<string, number>();
     let vIn = 0, vOut = 0;
     
-    for (const [empId, log] of latestPerEmployee.entries()) {
-      const emp = allEmployees[empId];
+    // First pass: count ALL IN scans across the day (unique employees who ever scanned IN)
+    for (const log of validLogs) {
+      const emp = allEmployees[log.employeeId];
       const isVisitor = emp?.isVisitor === true;
       const shift = getShiftFromScanTime(log, emp);
       const dept = emp?.department || 'Unknown';
       
       if (log.type === PresenceType.IN) {
-        inEmployees.add(empId);
-        deptInCount.set(dept, (deptInCount.get(dept) || 0) + 1);
-        shiftInCount.set(shift, (shiftInCount.get(shift) || 0) + 1);
-        if (isVisitor) vIn++;
+        // Add to unique IN set (automatically deduplicates same person)
+        if (!inEmployees.has(log.employeeId)) {
+          inEmployees.add(log.employeeId);
+          deptInCount.set(log.employeeId, (deptInCount.get(log.employeeId) || 0) + 1);
+          shiftInCount.set(shift, (shiftInCount.get(shift) || 0) + 1);
+          if (isVisitor) vIn++;
+        }
       } else {
-        outEmployees.add(empId);
+        // OUT scan - track for uniqueOut
+        outEmployees.add(log.employeeId);
         if (isVisitor) vOut++;
+      }
+    }
+    
+    // For department/shift breakdown, use LATEST log to show current status
+    // But don't recount unique IN - we already have the correct uniqueIn count
+    for (const [empId, log] of latestPerEmployee.entries()) {
+      if (log.type === PresenceType.OUT) {
+        outEmployees.add(empId);
+        const emp = allEmployees[empId];
+        if (emp?.isVisitor === true) vOut++;
       }
     }
     
