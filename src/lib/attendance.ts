@@ -222,12 +222,16 @@ export async function processScan(nik: string): Promise<{ success: boolean; mess
         return t2 - t1; // Descending
       });
     
+    const uniqueOutEmployees = new Set<string>();
+
     todayLogs.forEach(log => {
       if (!currentStates[log.employeeId]) {
         currentStates[log.employeeId] = log.type;
-        if (log.type === PresenceType.IN) {
-          uniqueInEmployees.add(log.employeeId);
-        }
+      }
+      if (log.type === PresenceType.IN) {
+        uniqueInEmployees.add(log.employeeId);
+      } else {
+        uniqueOutEmployees.add(log.employeeId);
       }
       const emp = allEmployees[log.employeeId];
       const isVisitor = emp?.isVisitor === true;
@@ -239,7 +243,6 @@ export async function processScan(nik: string): Promise<{ success: boolean; mess
     });
 
     // Include the CURRENT scan in the computation
-    // (it lives in this same batch, so the query above cannot see it yet)
     currentStates[employee.id] = nextType;
     if (nextType === PresenceType.IN) {
       uniqueInEmployees.add(employee.id);
@@ -247,12 +250,17 @@ export async function processScan(nik: string): Promise<{ success: boolean; mess
         visitorInCount++;
         uniqueVisitorIn.add(employee.id);
       }
-    } else if (employee.isVisitor === true) {
-      visitorOutCount++;
+    } else {
+      uniqueOutEmployees.add(employee.id);
+      if (employee.isVisitor === true) {
+        visitorOutCount++;
+      }
     }
 
-    const inCount = Object.values(currentStates).filter(s => s === PresenceType.IN).length;
-    const outCount = Object.values(currentStates).filter(s => s === PresenceType.OUT).length;
+    // MASUK = unique people who ever scanned IN today (never decreases)
+    // KELUAR = unique people who ever scanned OUT today
+    const inCount = uniqueInEmployees.size;
+    const outCount = uniqueOutEmployees.size;
 
     const statsUpdate: Record<string, any> = {
       in: inCount,
@@ -333,9 +341,9 @@ export async function getDailyStats(date: string) {
       });
     const personStates: Record<string, PresenceType> = {};
     const visitorInIds = new Set<string>();
+    const uniqueInIds = new Set<string>();
+    const uniqueOutIds = new Set<string>();
 
-    let inCount = 0;
-    let outCount = 0;
     let vInCount = 0;
     let vOutCount = 0;
 
@@ -347,13 +355,13 @@ export async function getDailyStats(date: string) {
       personStates[log.employeeId] = log.type;
 
       if (log.type === PresenceType.IN) {
-        inCount++;
+        uniqueInIds.add(log.employeeId);
         if (isVisitor) {
           visitorInIds.add(log.employeeId);
           vInCount++;
         }
       } else {
-        outCount++;
+        uniqueOutIds.add(log.employeeId);
         if (isVisitor) {
           vOutCount++;
         }
@@ -367,8 +375,8 @@ export async function getDailyStats(date: string) {
     });
 
     return {
-      in: inCount,
-      out: outCount,
+      in: uniqueInIds.size,
+      out: uniqueOutIds.size,
       pob,
       totalVisits: visitorInIds.size,
       visitorIn: vInCount,
