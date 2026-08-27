@@ -258,9 +258,9 @@ export async function processScan(nik: string): Promise<{ success: boolean; mess
     }
 
     // MASUK = unique people who ever scanned IN today (never decreases)
-    // KELUAR = unique people who ever scanned OUT today
+    // KELUAR = people currently OUT (state-based, can decrease if they scan IN again)
     const inCount = uniqueInEmployees.size;
-    const outCount = uniqueOutEmployees.size;
+    const outCount = Object.values(currentStates).filter(s => s === PresenceType.OUT).length;
 
     const statsUpdate: Record<string, any> = {
       in: inCount,
@@ -376,7 +376,7 @@ export async function getDailyStats(date: string) {
 
     return {
       in: uniqueInIds.size,
-      out: uniqueOutIds.size,
+      out: Object.values(personStates).filter(s => s === PresenceType.OUT).length,
       pob,
       totalVisits: visitorInIds.size,
       visitorIn: vInCount,
