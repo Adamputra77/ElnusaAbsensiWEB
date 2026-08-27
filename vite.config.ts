@@ -75,7 +75,7 @@ export default defineConfig(({mode}) => {
         output: {
           manualChunks: {
             'vendor-recharts': ['recharts'],
-            'vendor-leaflet': ['leaflet', 'react-leaflet'],
+            'vendor-leaflet': ['leaflet'],
           },
         },
       },
