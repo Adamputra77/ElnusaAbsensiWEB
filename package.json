@@ -9,7 +9,8 @@
     "start": "node dist/server.cjs",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
-    "reset:today": "tsx scripts/reset-today-stats.ts"
+    "reset:today": "tsx scripts/reset-today-stats.ts",
+    "reset:manhours": "tsx scripts/reset-manhours.ts"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",
